@@ -1,0 +1,176 @@
+/* Basic page look */
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #f4f6f8;
+  color: #222;
+  margin: 0;
+  padding: 16px;
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+h1 {
+  margin-bottom: 4px;
+}
+
+.intro {
+  margin-top: 0;
+  color: #555;
+}
+
+/* White boxes around each section */
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.card h2 {
+  margin-top: 0;
+  font-size: 1.2rem;
+}
+
+/* The add form: fields sit side by side and wrap on small screens */
+#add-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.9rem;
+  gap: 4px;
+}
+
+input,
+select {
+  padding: 6px 8px;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+button {
+  padding: 7px 14px;
+  font-size: 1rem;
+  border: none;
+  border-radius: 4px;
+  background: #2b6cb0;
+  color: #fff;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #22558c;
+}
+
+/* Small buttons inside the table */
+.small {
+  padding: 2px 8px;
+  font-size: 0.9rem;
+}
+
+.delete {
+  background: #c53030;
+}
+
+.delete:hover {
+  background: #9b2c2c;
+}
+
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sort {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The inventory table */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid #eee;
+}
+
+.qty {
+  white-space: nowrap;
+}
+
+.qty span {
+  display: inline-block;
+  min-width: 2em;
+  text-align: center;
+}
+
+/* Row colours for warnings */
+tr.low {
+  background: #fff8e1;
+}
+
+tr.soon {
+  background: #fff1e6;
+}
+
+tr.expired {
+  background: #fde8e8;
+}
+
+/* Little coloured labels */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  margin-right: 4px;
+  margin-bottom: 2px;
+}
+
+.badge.low {
+  background: #f6e05e;
+}
+
+.badge.soon {
+  background: #f6ad55;
+}
+
+.badge.expired {
+  background: #fc8181;
+}
+
+.legend {
+  margin: 0;
+}
+
+#empty-message {
+  color: #777;
+}
+
+/* On narrow phone screens, let the table scroll sideways */
+@media (max-width: 640px) {
+  table {
+    display: block;
+    overflow-x: auto;
+  }
+}

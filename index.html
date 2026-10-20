@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SortMedication</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>SortMedication</h1>
+    <p class="intro">Keep track of the medications you have on hand.</p>
+
+    <!-- Form for adding a new medication -->
+    <section class="card">
+      <h2>Add a medication</h2>
+      <form id="add-form">
+        <label>
+          Name
+          <input type="text" id="name" required placeholder="e.g. Paracetamol">
+        </label>
+        <label>
+          Dose
+          <input type="text" id="dose" placeholder="e.g. 500 mg">
+        </label>
+        <label>
+          Quantity
+          <input type="number" id="quantity" required min="0" value="0">
+        </label>
+        <label>
+          Expiry date
+          <input type="date" id="expiry">
+        </label>
+        <label>
+          Restock when at or below
+          <input type="number" id="restock" min="0" value="5">
+        </label>
+        <button type="submit">Add</button>
+      </form>
+    </section>
+
+    <!-- The list of medications -->
+    <section class="card">
+      <div class="list-header">
+        <h2>Inventory</h2>
+        <label class="sort">
+          Sort by
+          <select id="sort-by">
+            <option value="name">Name (A to Z)</option>
+            <option value="expiry">Expiry (soonest first)</option>
+          </select>
+        </label>
+      </div>
+
+      <p class="legend">
+        <span class="badge low">Low stock</span>
+        <span class="badge soon">Expires within 30 days</span>
+        <span class="badge expired">Expired</span>
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Dose</th>
+            <th>Quantity</th>
+            <th>Expiry</th>
+            <th>Restock at</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="med-list"></tbody>
+      </table>
+      <p id="empty-message">No medications yet. Add one above.</p>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

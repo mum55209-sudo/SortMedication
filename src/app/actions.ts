@@ -299,6 +299,6 @@ export async function startSubscriptionAction(): Promise<ActionResult> {
   // Payments are not connected yet. When Stripe is set up, this is where the
   // app will send the owner to Stripe's checkout page.
   return {
-    error: "Online payment isn't switched on yet. Please contact us to start your $40/month subscription.",
+    error: "Online payment isn't switched on yet. Please contact us to start your $80/month subscription.",
   };
 }

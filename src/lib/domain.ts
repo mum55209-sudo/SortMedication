@@ -2,7 +2,7 @@
 // warning flags and dates. Kept here so they are easy to read and test.
 
 export const TRIAL_DAYS = 14;
-export const PRICE_PER_MONTH_USD = 40;
+export const PRICE_PER_MONTH_USD = 80;
 export const DEFAULT_EXPIRY_WARNING_DAYS = 30;
 
 // ---------- Staff roles ----------

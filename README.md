@@ -1,7 +1,7 @@
 # SortMedication
 
 Stock-control software for independent US pharmacies, sold as a subscription
-($40/month per pharmacy, 14-day free trial).
+($80/month per pharmacy, 14-day free trial).
 
 Each pharmacy gets its own private account with staff logins. The app tracks
 every product and every batch (lot number and expiry date), warns when stock

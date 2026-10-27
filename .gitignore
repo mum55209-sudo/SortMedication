@@ -151,5 +151,6 @@ vite.config.ts.timestamp-*
 # Next.js build output and the local development database
 .next/
 next-env.d.ts
+AGENTS.md
 .data/
 .vercel

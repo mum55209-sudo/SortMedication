@@ -29,7 +29,7 @@ export default async function SignupPage() {
           <button type="submit">Create account</button>
         </ActionForm>
       </div>
-      <p className="muted">Already have an account? <Link href="/login">Log in</Link>.</p>
+      <p className="muted">Already have an account? <Link href="/login">Sign in</Link>.</p>
     </main>
   );
 }

@@ -112,7 +112,7 @@ export async function verifyLogin(email: string, password: string): Promise<User
   // Always run bcrypt so a wrong email takes as long as a wrong password.
   dummyHash ??= await bcrypt.hash("not-a-real-password", 10);
   const ok = await bcrypt.compare(password, row?.password_hash ?? dummyHash);
-  if (!row || !ok || !row.active) throw new UserError("That email and password don't match.");
+  if (!row || !ok || !row.active) throw new UserError("That email and password don't match. If you don't have an account yet, set one up below.");
   return row;
 }
 

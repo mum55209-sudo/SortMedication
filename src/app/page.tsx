@@ -11,7 +11,7 @@ export default async function Home() {
         <span className="logo">SortMedication</span>
         <nav />
         <div className="who">
-          <Link href="/login">Log in</Link>
+          <Link href="/login">Sign in</Link>
         </div>
       </header>
       <main>
@@ -23,7 +23,7 @@ export default async function Home() {
           </p>
           <div className="actions" style={{ justifyContent: "center" }}>
             <Link className="button" href="/signup">Start your {TRIAL_DAYS}-day free trial</Link>
-            <Link className="button secondary" href="/login">Log in</Link>
+            <Link className="button secondary" href="/login">Sign in</Link>
           </div>
           <p className="small muted">No card needed for the trial.</p>
         </section>

@@ -5,7 +5,7 @@ import { requireContext } from "@/lib/session";
 import { findByCode, listInventory } from "@/lib/stock";
 import { Flags, formatDate, Qty, rowClass } from "@/components/ui";
 
-type Search = { q?: string; sort?: string; filter?: string; archived?: string };
+type Search = { q?: string; sort?: string; filter?: string; archived?: string; welcome?: string };
 
 export default async function InventoryPage({ searchParams }: { searchParams: Promise<Search> }) {
   const ctx = await requireContext();
@@ -64,9 +64,19 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         </form>
 
         {rows.length === 0 ? (
-          <p className="muted">
-            {params.q || params.filter ? "No products match." : "No products yet. Add your first product or import a CSV file."}
-          </p>
+          params.q || params.filter || params.archived ? (
+            <p className="muted">No products match.</p>
+          ) : (
+            <div>
+              <h2>{params.welcome ? "Welcome! " : ""}Your inventory is empty. Here&apos;s how to get started</h2>
+              <ol>
+                <li>Add your suppliers in <Link href="/settings/suppliers">Settings → Suppliers</Link> (optional).</li>
+                <li>Add products one by one with <Link href="/products/new">Add product</Link>, or bring in a spreadsheet with <Link href="/import">Import CSV</Link>.</li>
+                <li>Record deliveries with <Link href="/receive">Receive stock</Link>, entering the lot number and expiry from the pack.</li>
+                <li>Invite your team in <Link href="/settings/staff">Settings → Staff</Link>.</li>
+              </ol>
+            </div>
+          )
         ) : (
           <div className="table-wrap">
             <table>

@@ -4,7 +4,7 @@ import { PRICE_PER_MONTH_USD, TRIAL_DAYS } from "@/lib/domain";
 import { getContext } from "@/lib/session";
 
 export default async function Home() {
-  if (await getContext()) redirect("/dashboard");
+  if (await getContext()) redirect("/inventory");
   return (
     <>
       <header className="topbar">

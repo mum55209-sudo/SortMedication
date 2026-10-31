@@ -8,6 +8,9 @@ import { can, type Permission } from "./domain";
 
 const COOKIE = "sortmed_session";
 
+// Holds an unfinished Google sign-up (see /signup/google).
+export const GOOGLE_SIGNUP_COOKIE = "sortmed_google_signup";
+
 export async function startSession(userId: string) {
   const { token, expires } = await createSession(userId);
   (await cookies()).set(COOKIE, token, {

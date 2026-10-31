@@ -121,4 +121,19 @@ CREATE TABLE activity_log (
 );
 CREATE INDEX activity_log_pharmacy_time_idx ON activity_log (pharmacy_id, created_at);
 `,
+  // 2: Sign in with Google. Google users may have no password, and a Google
+  // sign-up is held in google_signups until they name their pharmacy.
+  `
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE;
+
+CREATE TABLE google_signups (
+  token_hash TEXT PRIMARY KEY,
+  google_id TEXT NOT NULL,
+  email TEXT NOT NULL,
+  name TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+`,
 ];

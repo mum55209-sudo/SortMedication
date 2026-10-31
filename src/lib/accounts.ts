@@ -71,7 +71,33 @@ export async function logActivity(db: Queryable, pharmacyId: string, userId: str
   ]);
 }
 
-// Sign-up: creates the pharmacy, its first branch and the owner's login.
+// Creates the pharmacy, its first branch and the owner's login. The owner
+// has a password, a Google account, or both.
+async function insertPharmacy(
+  tx: Queryable,
+  input: { pharmacyName: string; ownerName: string; email: string; passwordHash: string | null; googleId: string | null; how: string },
+): Promise<{ pharmacyId: string; userId: string; branchId: string }> {
+  if (await emailTaken(tx, input.email)) throw new UserError("An account with that email already exists. Try signing in.");
+  const pharmacyId = newId();
+  const branchId = newId();
+  const userId = newId();
+  const trialEnds = new Date(Date.now() + TRIAL_DAYS * 86_400_000);
+  await tx.query("INSERT INTO pharmacies (id, name, trial_ends_at) VALUES ($1, $2, $3)", [pharmacyId, input.pharmacyName, trialEnds]);
+  await tx.query("INSERT INTO branches (id, pharmacy_id, name) VALUES ($1, $2, $3)", [branchId, pharmacyId, "Main store"]);
+  await tx.query(
+    "INSERT INTO users (id, pharmacy_id, name, email, password_hash, google_id, role) VALUES ($1, $2, $3, $4, $5, $6, 'owner')",
+    [userId, pharmacyId, input.ownerName, input.email, input.passwordHash, input.googleId],
+  );
+  await logActivity(tx, pharmacyId, userId, "Account created", `${input.pharmacyName}, ${TRIAL_DAYS}-day free trial started${input.how}`);
+  return { pharmacyId, userId, branchId };
+}
+
+function checkNames(pharmacyName: string, ownerName: string) {
+  if (!pharmacyName) throw new UserError("Please enter the pharmacy's name.");
+  if (!ownerName) throw new UserError("Please enter your name.");
+}
+
+// Sign-up with email and password.
 export async function createPharmacyAccount(input: {
   pharmacyName: string;
   ownerName: string;
@@ -81,26 +107,91 @@ export async function createPharmacyAccount(input: {
   const pharmacyName = input.pharmacyName.trim();
   const ownerName = input.ownerName.trim();
   const email = normalizeEmail(input.email);
-  if (!pharmacyName) throw new UserError("Please enter the pharmacy's name.");
-  if (!ownerName) throw new UserError("Please enter your name.");
+  checkNames(pharmacyName, ownerName);
   checkEmail(email);
   checkPassword(input.password);
   const passwordHash = await bcrypt.hash(input.password, 10);
+  return transaction((tx) => insertPharmacy(tx, { pharmacyName, ownerName, email, passwordHash, googleId: null, how: "" }));
+}
 
-  return transaction(async (tx) => {
-    if (await emailTaken(tx, email)) throw new UserError("An account with that email already exists. Try logging in.");
-    const pharmacyId = newId();
-    const branchId = newId();
-    const userId = newId();
-    const trialEnds = new Date(Date.now() + TRIAL_DAYS * 86_400_000);
-    await tx.query("INSERT INTO pharmacies (id, name, trial_ends_at) VALUES ($1, $2, $3)", [pharmacyId, pharmacyName, trialEnds]);
-    await tx.query("INSERT INTO branches (id, pharmacy_id, name) VALUES ($1, $2, $3)", [branchId, pharmacyId, "Main store"]);
-    await tx.query(
-      "INSERT INTO users (id, pharmacy_id, name, email, password_hash, role) VALUES ($1, $2, $3, $4, $5, 'owner')",
-      [userId, pharmacyId, ownerName, email, passwordHash],
+// ---------- Sign in with Google ----------
+
+export interface GoogleProfile {
+  sub: string; // Google's id for the person; never changes
+  email: string;
+  name: string;
+}
+
+const GOOGLE_SIGNUP_MINUTES = 30;
+
+// After Google says who someone is: either they already have a login (by
+// Google id, or by the same email address, which Google has checked), or
+// they are new and need to tell us their pharmacy's name first.
+export async function googleSignIn(
+  profile: GoogleProfile,
+): Promise<{ kind: "user"; user: User } | { kind: "new"; signupToken: string }> {
+  const email = normalizeEmail(profile.email);
+  let user: User | undefined = await one<User>("SELECT id, pharmacy_id, name, email, role, active FROM users WHERE google_id = $1", [
+    profile.sub,
+  ]);
+  if (!user) {
+    const byEmail = await one<User & { google_id: string | null }>(
+      "SELECT id, pharmacy_id, name, email, role, active, google_id FROM users WHERE email = $1",
+      [email],
     );
-    await logActivity(tx, pharmacyId, userId, "Account created", `${pharmacyName}, ${TRIAL_DAYS}-day free trial started`);
-    return { pharmacyId, userId, branchId };
+    if (byEmail?.google_id) throw new UserError("That email is already linked to a different Google account.");
+    if (byEmail) {
+      await query("UPDATE users SET google_id = $1 WHERE id = $2", [profile.sub, byEmail.id]);
+      await logActivity({ query }, byEmail.pharmacy_id, byEmail.id, "Google sign-in linked", email);
+      user = byEmail;
+    }
+  }
+  if (user) {
+    if (!user.active) throw new UserError("This login has been switched off. Please ask your pharmacy owner.");
+    return { kind: "user", user };
+  }
+  const signupToken = randomBytes(32).toString("base64url");
+  await query("DELETE FROM google_signups WHERE expires_at < now()");
+  await query("INSERT INTO google_signups (token_hash, google_id, email, name, expires_at) VALUES ($1, $2, $3, $4, $5)", [
+    hashToken(signupToken),
+    profile.sub,
+    email,
+    profile.name.trim(),
+    new Date(Date.now() + GOOGLE_SIGNUP_MINUTES * 60_000),
+  ]);
+  return { kind: "new", signupToken };
+}
+
+export async function getGoogleSignup(token: string): Promise<{ email: string; name: string } | null> {
+  const row = await one<{ email: string; name: string }>(
+    "SELECT email, name FROM google_signups WHERE token_hash = $1 AND expires_at > now()",
+    [hashToken(token)],
+  );
+  return row ?? null;
+}
+
+// Finishes a Google sign-up: makes the pharmacy with the Google account as owner.
+export async function createPharmacyWithGoogle(
+  token: string,
+  input: { pharmacyName: string; ownerName: string },
+): Promise<{ pharmacyId: string; userId: string; branchId: string }> {
+  const pharmacyName = input.pharmacyName.trim();
+  const ownerName = input.ownerName.trim();
+  checkNames(pharmacyName, ownerName);
+  return transaction(async (tx) => {
+    const rows = await tx.query<{ google_id: string; email: string }>(
+      "DELETE FROM google_signups WHERE token_hash = $1 AND expires_at > now() RETURNING google_id, email",
+      [hashToken(token)],
+    );
+    if (!rows[0]) throw new UserError("Your Google sign-up timed out. Please press \"Sign up with Google\" again.");
+    return insertPharmacy(tx, {
+      pharmacyName,
+      ownerName,
+      email: rows[0].email,
+      passwordHash: null,
+      googleId: rows[0].google_id,
+      how: " (signed up with Google)",
+    });
   });
 }
 
@@ -108,11 +199,15 @@ let dummyHash: string | undefined;
 
 // Returns the user if the email and password match an active login.
 export async function verifyLogin(email: string, password: string): Promise<User> {
-  const row = await one<User & { password_hash: string }>("SELECT * FROM users WHERE email = $1", [normalizeEmail(email)]);
+  const row = await one<User & { password_hash: string | null }>("SELECT * FROM users WHERE email = $1", [normalizeEmail(email)]);
   // Always run bcrypt so a wrong email takes as long as a wrong password.
   dummyHash ??= await bcrypt.hash("not-a-real-password", 10);
   const ok = await bcrypt.compare(password, row?.password_hash ?? dummyHash);
-  if (!row || !ok || !row.active) throw new UserError("That email and password don't match. If you don't have an account yet, set one up below.");
+  if (!row || !ok || !row.active) {
+    throw new UserError(
+      "That email and password don't match. If you signed up with Google, use \"Sign in with Google\". If you don't have an account yet, set one up below.",
+    );
+  }
   return row;
 }
 
@@ -214,10 +309,19 @@ export async function resetStaffPassword(ctx: Ctx, userId: string, password: str
   await logActivity({ query }, ctx.pharmacy.id, ctx.user.id, "Password reset", target.name);
 }
 
+export async function hasPassword(userId: string): Promise<boolean> {
+  const row = await one<{ has: boolean }>("SELECT password_hash IS NOT NULL AS has FROM users WHERE id = $1", [userId]);
+  return row?.has ?? false;
+}
+
+// People who signed up with Google have no password until they set one, so
+// they are not asked for a current password.
 export async function changeOwnPassword(ctx: Ctx, current: string, next: string) {
-  await verifyLogin(ctx.user.email, current).catch(() => {
-    throw new UserError("Your current password is not right.");
-  });
+  if (await hasPassword(ctx.user.id)) {
+    await verifyLogin(ctx.user.email, current).catch(() => {
+      throw new UserError("Your current password is not right.");
+    });
+  }
   checkPassword(next);
   await query("UPDATE users SET password_hash = $1 WHERE id = $2", [await bcrypt.hash(next, 10), ctx.user.id]);
 }

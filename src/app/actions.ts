@@ -11,6 +11,7 @@ import {
   addStaff,
   changeOwnPassword,
   createPharmacyAccount,
+  createPharmacyWithGoogle,
   renameBranch,
   resetStaffPassword,
   setSessionBranch,
@@ -21,7 +22,8 @@ import {
 import { parseCsv } from "@/lib/csv";
 import { can, type MovementType } from "@/lib/domain";
 import { toActionError, UserError, type ActionResult } from "@/lib/errors";
-import { endSession, requireContext, sessionToken, startSession } from "@/lib/session";
+import { cookies } from "next/headers";
+import { endSession, GOOGLE_SIGNUP_COOKIE, requireContext, sessionToken, startSession } from "@/lib/session";
 import {
   createProduct,
   importProducts,
@@ -67,7 +69,26 @@ export async function signupAction(fd: FormData): Promise<ActionResult> {
   } catch (err) {
     return toActionError(err);
   }
-  redirect("/dashboard?welcome=1");
+  redirect("/inventory?welcome=1");
+}
+
+// The last step of "Sign up with Google".
+export async function googleSignupAction(fd: FormData): Promise<ActionResult> {
+  try {
+    if (text(fd, "agree") !== "yes") throw new UserError("Please confirm you won't store patient details.");
+    const jar = await cookies();
+    const token = jar.get(GOOGLE_SIGNUP_COOKIE)?.value;
+    if (!token) throw new UserError("Your Google sign-up timed out. Please press \"Sign up with Google\" again.");
+    const { userId } = await createPharmacyWithGoogle(token, {
+      pharmacyName: text(fd, "pharmacyName"),
+      ownerName: text(fd, "ownerName"),
+    });
+    jar.delete(GOOGLE_SIGNUP_COOKIE);
+    await startSession(userId);
+  } catch (err) {
+    return toActionError(err);
+  }
+  redirect("/inventory?welcome=1");
 }
 
 export async function loginAction(fd: FormData): Promise<ActionResult> {
@@ -77,7 +98,7 @@ export async function loginAction(fd: FormData): Promise<ActionResult> {
   } catch (err) {
     return toActionError(err);
   }
-  redirect("/dashboard");
+  redirect("/inventory");
 }
 
 export async function logoutAction() {
@@ -290,7 +311,8 @@ export async function changePasswordAction(fd: FormData): Promise<ActionResult> 
   } catch (err) {
     return toActionError(err);
   }
-  return { message: "Password changed." };
+  revalidatePath("/settings/account");
+  return { message: "Password saved." };
 }
 
 export async function startSubscriptionAction(): Promise<ActionResult> {

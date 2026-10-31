@@ -193,3 +193,25 @@ dl.details dd { margin: 0; }
   body { background: #fff; }
   .card { border: 0; padding: 0; }
 }
+
+/* ---------- Sign in with Google ---------- */
+
+/* White square button with Google's "G", as Google's sign-in guidelines ask. */
+.button.google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  background: #fff;
+  color: var(--text);
+  border-color: #c3cad3;
+  font-weight: 500;
+}
+.button.google:hover { background: #f4f6f8; }
+.button.google svg { flex: none; }
+h1 + .button.google { margin-top: 16px; }
+
+/* "or" with a line either side, between Google and the email form. */
+.or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 0.85rem; margin: 16px 0; }
+.or::before, .or::after { content: ""; flex: 1; border-top: 1px solid var(--border); }

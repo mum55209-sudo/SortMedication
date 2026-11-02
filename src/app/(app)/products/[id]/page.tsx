@@ -45,8 +45,8 @@ export default async function ProductPage({
           </p>
         </div>
         <div className="actions">
-          {can(role, "stock.receive") && !product.archived && <Link className="button" href={`/receive?product=${id}`}>Receive stock</Link>}
-          {can(role, "stock.out") && !product.archived && <Link className="button secondary" href={`/stock-out?product=${id}`}>Stock out</Link>}
+          {can(role, "stock.receive") && !product.archived && <Link className="button" href={`/receive?product=${id}`}>In (+) Receive stock</Link>}
+          {can(role, "stock.out") && !product.archived && <Link className="button secondary" href={`/stock-out?product=${id}`}>Out (−) Stock out</Link>}
           {can(role, "products.edit") && <Link className="button secondary" href={`/products/${id}/edit`}>Edit</Link>}
         </div>
       </div>

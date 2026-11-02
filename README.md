@@ -37,6 +37,13 @@ trail. It stores no patient details.
 - **CSV import** of products, with optional opening stock.
 - **Settings**: pharmacy details, expiry warning period (30 days by default),
   branches, staff, suppliers, subscription and password.
+- **Patients**: basic details (name, date of birth, phone, address,
+  allergies, insurance) and what has been dispensed to each patient. Start a
+  dispense from the patient's page and the patient is saved with it. Hidden
+  from read-only staff. See "Patient information" below before using it with
+  real patients.
+- **In (+) and Out (−)**: stock coming in (Receive stock) is labelled "In
+  (+)" and stock going out is labelled "Out (−)" across the app.
 - **Trial ending**: after the trial, an unpaid pharmacy becomes read-only (it
   can still view and export everything).
 
@@ -110,7 +117,7 @@ there and won't make them again. (After changing `src/lib/schema.ts`, run
 
 When the app has started once, open **Table Editor** in Supabase and you will
 see its tables (`pharmacies`, `products`, `batches`, `movements`,
-`shipments` and so on). Two read-only views are handy to look at there:
+`shipments`, `patients` and so on). Two read-only views are handy to look at there:
 `inventory_counts` (how many units of each product are on the shelf, and
 whether it is running low) and `shipment_warnings` (shipments that are late,
 delayed or have just arrived).
@@ -121,6 +128,27 @@ data hidden from that API; you don't need to set up any rules. Connections are
 encrypted. For the strictest certificate check, download the certificate from
 **Project Settings > Database > SSL configuration** and add its text as
 `DATABASE_CA_CERT` (optional).
+
+## Patient information (HIPAA)
+
+Patient names, dates of birth, allergies and what was dispensed to whom are
+*protected health information* under HIPAA, the US health privacy law. Storing
+them for pharmacies makes SortMedication a "business associate", so before
+real patients go in:
+
+1. **Sign a BAA with Supabase.** A Business Associate Agreement is a contract
+   saying Supabase will protect the data. Supabase only offers one on its
+   **Team plan or higher, with the HIPAA add-on** (Dashboard > Organization
+   settings > Billing; see supabase.com/docs/guides/security/hipaa-compliance).
+   Vercel also needs a BAA (Enterprise plan or its HIPAA add-on) because
+   patient details pass through it.
+2. **Sign a BAA with each pharmacy** that uses the patient pages.
+3. **Keep access tight.** Only owners, pharmacists and technicians can open
+   Patients; give read-only to anyone who doesn't need it. Each patient
+   record added or changed is written to the audit log (without the health
+   details themselves).
+
+Until then, use made-up test patients only.
 
 ## Putting it online (Vercel)
 

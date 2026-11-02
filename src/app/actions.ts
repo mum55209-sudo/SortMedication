@@ -34,6 +34,7 @@ import {
   stockOut,
   updateProduct,
 } from "@/lib/stock";
+import { parsePatientInput, savePatient } from "@/lib/patients";
 import { createShipment, updateShipmentStatus, type ShipmentStatus } from "@/lib/shipments";
 
 function text(fd: FormData, name: string): string {
@@ -197,11 +198,13 @@ export async function stockOutAction(fd: FormData): Promise<ActionResult> {
       reference: text(fd, "reference"),
       note: text(fd, "note"),
       targetBranchId: text(fd, "targetBranchId") || undefined,
+      patientId: text(fd, "patientId") || null,
     });
   } catch (err) {
     return toActionError(err);
   }
-  redirect(`/products/${productId}?done=updated`);
+  const patientId = text(fd, "patientId");
+  redirect(patientId ? `/patients/${patientId}?done=dispensed` : `/products/${productId}?done=updated`);
 }
 
 export async function importAction(fd: FormData): Promise<ActionResult> {
@@ -302,6 +305,22 @@ export async function saveSupplierAction(fd: FormData): Promise<ActionResult> {
   }
   revalidatePath("/settings/suppliers");
   return { message: "Supplier saved." };
+}
+
+// ---------- Patients ----------
+
+export async function savePatientAction(fd: FormData): Promise<ActionResult> {
+  const ctx = await requireContext();
+  const existing = text(fd, "id") || null;
+  let id: string;
+  try {
+    id = await savePatient(ctx, existing, parsePatientInput(fields(fd)));
+  } catch (err) {
+    return toActionError(err);
+  }
+  revalidatePath("/patients");
+  if (existing) return { message: "Patient details saved." };
+  redirect(`/patients/${id}`);
 }
 
 // ---------- Shipments ----------

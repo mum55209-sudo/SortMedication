@@ -183,6 +183,28 @@ SELECT s.pharmacy_id, s.branch_id, s.id AS shipment_id, s.reference, s.expected_
     OR (s.status = 'arrived' AND s.arrived_at > now() - INTERVAL '7 days');
 INSERT INTO schema_migrations (version) VALUES (3);
 
+-- Step 4
+CREATE TABLE patients (
+  id TEXT PRIMARY KEY,
+  pharmacy_id TEXT NOT NULL REFERENCES pharmacies(id),
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  date_of_birth DATE NOT NULL,
+  phone TEXT NOT NULL DEFAULT '',
+  address TEXT NOT NULL DEFAULT '',
+  allergies TEXT NOT NULL DEFAULT '',
+  insurance_provider TEXT NOT NULL DEFAULT '',
+  insurance_member_id TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX patients_name_idx ON patients (pharmacy_id, last_name, first_name);
+
+ALTER TABLE movements ADD COLUMN patient_id TEXT REFERENCES patients(id);
+CREATE INDEX movements_patient_idx ON movements (patient_id);
+INSERT INTO schema_migrations (version) VALUES (4);
+
 -- Hide every table from Supabase's public Data API (the app connects directly and isn't affected).
 DO $$
 DECLARE t record;

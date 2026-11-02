@@ -10,9 +10,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const links = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/inventory", label: "Inventory" },
-    ...(can(role, "stock.receive") ? [{ href: "/receive", label: "Receive stock" }] : []),
-    ...(can(role, "stock.out") ? [{ href: "/stock-out", label: "Stock out" }] : []),
+    ...(can(role, "stock.receive") ? [{ href: "/receive", label: "In (+)" }] : []),
+    ...(can(role, "stock.out") ? [{ href: "/stock-out", label: "Out (−)" }] : []),
     { href: "/shipments", label: "Shipments" },
+    ...(can(role, "patients") ? [{ href: "/patients", label: "Patients" }] : []),
     { href: "/reports", label: "Reports" },
     { href: "/settings", label: "Settings" },
   ];

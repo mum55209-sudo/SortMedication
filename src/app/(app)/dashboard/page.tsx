@@ -21,8 +21,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <p className="subtitle">{ctx.branch.name} · expiry warnings at {ctx.pharmacy.expiry_warning_days} days</p>
         </div>
         <div className="actions">
-          {can(role, "stock.receive") && <Link className="button" href="/receive">Receive stock</Link>}
-          {can(role, "stock.out") && <Link className="button secondary" href="/stock-out">Stock out</Link>}
+          {can(role, "stock.receive") && <Link className="button" href="/receive">In (+) Receive stock</Link>}
+          {can(role, "stock.out") && <Link className="button secondary" href="/stock-out">Out (−) Stock out</Link>}
         </div>
       </div>
 

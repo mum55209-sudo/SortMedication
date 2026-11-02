@@ -25,6 +25,7 @@ import {
   type Permission,
 } from "./domain";
 import { UserError } from "./errors";
+import { checkPatient } from "./patients";
 
 export interface Product {
   id: string;
@@ -224,12 +225,21 @@ async function batchQuantity(db: Queryable, batchId: string): Promise<number> {
 async function insertMovement(
   db: Queryable,
   ctx: Ctx,
-  m: { branchId: string; productId: string; batchId: string; type: MovementType; quantity: number; reference?: string; note?: string },
+  m: {
+    branchId: string;
+    productId: string;
+    batchId: string;
+    type: MovementType;
+    quantity: number;
+    reference?: string;
+    note?: string;
+    patientId?: string | null;
+  },
 ) {
   await db.query(
-    `INSERT INTO movements (id, pharmacy_id, branch_id, product_id, batch_id, type, quantity, user_id, reference, note)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [newId(), ctx.pharmacy.id, m.branchId, m.productId, m.batchId, m.type, m.quantity, ctx.user.id, m.reference ?? "", m.note ?? ""],
+    `INSERT INTO movements (id, pharmacy_id, branch_id, product_id, batch_id, type, quantity, user_id, reference, note, patient_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    [newId(), ctx.pharmacy.id, m.branchId, m.productId, m.batchId, m.type, m.quantity, ctx.user.id, m.reference ?? "", m.note ?? "", m.patientId ?? null],
   );
 }
 
@@ -315,6 +325,8 @@ export interface StockOutInput {
   reference: string;
   note: string;
   targetBranchId?: string;
+  // Optional: the patient a dispense was for.
+  patientId?: string | null;
 }
 
 export async function stockOut(ctx: Ctx, input: StockOutInput): Promise<void> {
@@ -383,6 +395,7 @@ export async function stockOut(ctx: Ctx, input: StockOutInput): Promise<void> {
       return;
     }
 
+    const patientId = input.type === "dispensed" ? await checkPatient(tx, ctx, input.patientId) : null;
     await insertMovement(tx, ctx, {
       branchId: product.branch_id,
       productId: product.id,
@@ -391,6 +404,7 @@ export async function stockOut(ctx: Ctx, input: StockOutInput): Promise<void> {
       quantity: -input.quantity,
       reference: input.reference.trim(),
       note,
+      patientId,
     });
   });
 }

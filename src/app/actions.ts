@@ -34,6 +34,7 @@ import {
   stockOut,
   updateProduct,
 } from "@/lib/stock";
+import { createShipment, updateShipmentStatus, type ShipmentStatus } from "@/lib/shipments";
 
 function text(fd: FormData, name: string): string {
   const value = fd.get(name);
@@ -301,6 +302,43 @@ export async function saveSupplierAction(fd: FormData): Promise<ActionResult> {
   }
   revalidatePath("/settings/suppliers");
   return { message: "Supplier saved." };
+}
+
+// ---------- Shipments ----------
+
+export async function createShipmentAction(fd: FormData): Promise<ActionResult> {
+  const ctx = await requireContext();
+  try {
+    const productIds = fd.getAll("itemProduct").map(String);
+    const quantities = fd.getAll("itemQuantity").map(String);
+    await createShipment(ctx, {
+      supplierId: text(fd, "supplierId") || null,
+      reference: text(fd, "reference"),
+      expectedDate: text(fd, "expectedDate"),
+      note: text(fd, "note"),
+      items: productIds.map((productId, i) => ({ productId, quantity: wholeNumber(quantities[i] ?? "") })).filter((i) => i.productId),
+    });
+  } catch (err) {
+    return toActionError(err);
+  }
+  revalidatePath("/shipments");
+  revalidatePath("/dashboard");
+  return { message: "Shipment added. You'll be warned here and on the dashboard if it's late." };
+}
+
+export async function updateShipmentAction(fd: FormData): Promise<ActionResult> {
+  const ctx = await requireContext();
+  try {
+    await updateShipmentStatus(ctx, text(fd, "id"), {
+      status: (text(fd, "status") || text(fd, "do")) as ShipmentStatus,
+      expectedDate: text(fd, "expectedDate"),
+      delayReason: text(fd, "delayReason"),
+    });
+  } catch (err) {
+    return toActionError(err);
+  }
+  revalidatePath("/shipments");
+  revalidatePath("/dashboard");
 }
 
 export async function changePasswordAction(fd: FormData): Promise<ActionResult> {

@@ -15,7 +15,8 @@ trail. It stores no patient details.
   branch, and lands on its inventory. The owner adds staff with one of four roles:
   owner, pharmacist, technician or read-only.
 - **Dashboard** with counts of products running low, batches expiring soon and
-  expired batches, plus today's stock movements.
+  expired batches, a **Warnings** list (each product running low, and each
+  shipment that is late, delayed or has arrived), plus today's stock movements.
 - **Inventory list**, searchable by name, NDC, barcode or shelf, with filters
   and sorting. A barcode scanner typing into the search box jumps straight to
   the product.
@@ -23,6 +24,9 @@ trail. It stores no patient details.
   schedule (II–V), reorder level and quantity, supplier, prices, storage and
   shelf location.
 - **Receive stock** into a batch (lot, expiry, invoice, supplier).
+- **Shipments**: record an order you're expecting (supplier, order number,
+  expected date, products). Mark it delayed (with a new date and reason),
+  arrived or cancelled. A shipment past its expected date is flagged as late.
 - **Stock out**: dispense, return to supplier, expired/destroyed, count
   adjustment, or move to another branch. Suggests the batch that expires
   first and refuses to take more than a batch holds. Schedule II adjustments
@@ -98,8 +102,18 @@ itself the first time it starts.
 5. Put it in Vercel (below). To try Supabase from your own computer too, copy
    `.env.example` to `.env.local` and paste it after `DATABASE_URL=`.
 
+**Prefer to create the tables yourself?** Open **SQL Editor** in Supabase,
+paste in everything from [`docs/database.sql`](docs/database.sql) and click
+**Run**. Do this on a new, empty Supabase project. The app sees the tables are
+there and won't make them again. (After changing `src/lib/schema.ts`, run
+`npm run db:sql` to update that file.)
+
 When the app has started once, open **Table Editor** in Supabase and you will
-see its tables (`pharmacies`, `products`, `batches`, `movements` and so on).
+see its tables (`pharmacies`, `products`, `batches`, `movements`,
+`shipments` and so on). Two read-only views are handy to look at there:
+`inventory_counts` (how many units of each product are on the shelf, and
+whether it is running low) and `shipment_warnings` (shipments that are late,
+delayed or have just arrived).
 
 The app talks to the database directly and does not use Supabase's own web
 API, so it switches on *row level security* for every table. That keeps the

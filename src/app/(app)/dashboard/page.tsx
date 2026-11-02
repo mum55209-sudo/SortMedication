@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { can } from "@/lib/domain";
 import { requireContext } from "@/lib/session";
-import { dashboard, productLabel } from "@/lib/stock";
+import { dashboard, listInventory, productLabel } from "@/lib/stock";
+import { shipmentAlerts } from "@/lib/shipments";
 import { formatDateTime, MovementQty, MovementType } from "@/components/ui";
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
   const ctx = await requireContext();
   const { welcome } = await searchParams;
   const d = await dashboard(ctx);
+  const lowItems = (await listInventory(ctx, { filter: "low", sort: "stock" })).slice(0, 10);
+  const shipments = await shipmentAlerts(ctx);
   const role = ctx.user.role;
 
   return (
@@ -32,6 +35,27 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <li>Record deliveries with <Link href="/receive">Receive stock</Link>, entering the lot number and expiry from the pack.</li>
             <li>Invite your team in <Link href="/settings/staff">Settings → Staff</Link>.</li>
           </ol>
+        </div>
+      )}
+
+      {(lowItems.length > 0 || shipments.length > 0) && (
+        <div className="card">
+          <h2>Warnings</h2>
+          {shipments.map(({ shipment, alert, text }) => (
+            <p key={shipment.id} className={alert === "arrived" ? "notice" : "warning"}>
+              {alert === "arrived" ? "Arrived: " : "Delayed: "}
+              {text} <Link href="/shipments">See shipments</Link>
+            </p>
+          ))}
+          {lowItems.map((p) => (
+            <p key={p.id} className="warning">
+              Running low: <Link href={`/products/${p.id}`}>{productLabel(p)}</Link> has {p.total} left (reorder at {p.reorder_level}
+              {p.reorder_qty > 0 ? `, usually order ${p.reorder_qty}` : ""}).
+            </p>
+          ))}
+          {d.lowCount > lowItems.length && (
+            <p className="small"><Link href="/inventory?filter=low">See all {d.lowCount} products running low →</Link></p>
+          )}
         </div>
       )}
 

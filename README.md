@@ -75,12 +75,46 @@ Other commands:
 - `npm test` runs the automated tests.
 - `npm run build` checks the whole app compiles, as Vercel will.
 
+## Setting up the database (Supabase)
+
+Online, the app keeps its data in a [Supabase](https://supabase.com) database
+(Supabase runs a Postgres database for you). You only need to give the app
+one line of text, the *connection string*. The app creates all its tables by
+itself the first time it starts.
+
+1. Go to https://supabase.com, click **Start your project** and sign in (you
+   can use your GitHub account).
+2. Click **New project**. Pick a name (for example `sortmedication`), make up a
+   strong **database password** and save it somewhere safe, and choose the
+   region closest to your pharmacies (for the USA, **East US**). Click
+   **Create new project** and wait a minute or two.
+3. At the top of the project page click **Connect**. Under **Connection
+   string**, choose **Transaction pooler** (port `6543`). Copy the line, which
+   looks like
+   `postgresql://postgres.abcdefgh:[YOUR-PASSWORD]@aws-0-us-east-1.pooler.supabase.com:6543/postgres`.
+4. Replace `[YOUR-PASSWORD]` (including the square brackets) with the database
+   password from step 2. This full line is your `DATABASE_URL`. Keep it
+   private: anyone with it can read and change the data.
+5. Put it in Vercel (below). To try Supabase from your own computer too, copy
+   `.env.example` to `.env.local` and paste it after `DATABASE_URL=`.
+
+When the app has started once, open **Table Editor** in Supabase and you will
+see its tables (`pharmacies`, `products`, `batches`, `movements` and so on).
+
+The app talks to the database directly and does not use Supabase's own web
+API, so it switches on *row level security* for every table. That keeps the
+data hidden from that API; you don't need to set up any rules. Connections are
+encrypted. For the strictest certificate check, download the certificate from
+**Project Settings > Database > SSL configuration** and add its text as
+`DATABASE_CA_CERT` (optional).
+
 ## Putting it online (Vercel)
 
 1. In Vercel, import this GitHub repository as a new project.
-2. In the project's **Storage** tab, add a **Neon** Postgres database. Vercel
-   sets `DATABASE_URL` for you.
-3. Deploy. The database tables are created automatically on first use.
+2. In the project's **Settings > Environment Variables**, add `DATABASE_URL`
+   with your Supabase connection string from the steps above.
+3. Deploy (or **Redeploy** if it was already deployed). The database tables
+   are created automatically on first use.
 
 ## Sign in with Google
 

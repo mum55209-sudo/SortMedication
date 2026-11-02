@@ -82,6 +82,8 @@ async function createPostgresDriver(url: string): Promise<Driver> {
 
 async function createPgliteDriver(dataDir: string | undefined): Promise<Driver> {
   const { PGlite, types } = await import("@electric-sql/pglite");
+  // PGlite only creates the last folder, so make ./.data first on a fresh copy.
+  if (dataDir) (await import("node:fs")).mkdirSync(dataDir, { recursive: true });
   const pg = new PGlite(dataDir);
   // Same conversions as the Postgres driver above.
   const options = {

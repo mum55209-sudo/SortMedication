@@ -48,6 +48,10 @@ trail. It stores no patient details.
   real patients.
 - **In (+) and Out (−)**: stock coming in (Receive stock) is labelled "In
   (+)" and stock going out is labelled "Out (−)" across the app.
+- **Stock record with running count**: every movement in a medication's
+  history, the dashboard and the audit log shows "In stock after", the number
+  of units on hand right after that In or Out. In Supabase, the
+  `stock_record` view shows the same.
 - **Trial ending**: after the trial, an unpaid pharmacy becomes read-only (it
   can still view and export everything).
 

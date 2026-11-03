@@ -212,6 +212,19 @@ CREATE INDEX patients_name_idx ON patients (pharmacy_id, last_name, first_name);
 ALTER TABLE movements ADD COLUMN patient_id TEXT REFERENCES patients(id);
 CREATE INDEX movements_patient_idx ON movements (patient_id);
 `,
+  // 5: stock_record view for Supabase's Table Editor: every stock movement
+  // labelled In (+) or Out (-), with how many units of that medication are in
+  // stock right after it.
+  `
+CREATE VIEW stock_record WITH (security_invoker = true) AS
+SELECT m.pharmacy_id, m.branch_id, m.product_id, p.name, p.strength, p.form, m.created_at,
+       CASE WHEN m.quantity > 0 THEN 'In (+)' ELSE 'Out (-)' END AS direction,
+       m.type, m.quantity,
+       (SUM(m.quantity) OVER (PARTITION BY m.product_id ORDER BY m.created_at, m.id ROWS UNBOUNDED PRECEDING))::int AS in_stock_after,
+       m.reference, m.note
+  FROM movements m
+  JOIN products p ON p.id = m.product_id;
+`,
 ];
 
 // The whole database as one SQL script, for pasting into Supabase's SQL

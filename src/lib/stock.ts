@@ -532,6 +532,8 @@ export interface MovementRow {
   created_at: Date;
   type: string;
   quantity: number;
+  // Units of this product in stock (all batches) right after this movement.
+  balance_after: number;
   reference: string;
   note: string;
   user_name: string;
@@ -565,10 +567,11 @@ export async function movementLog(
   if (opts.to && isISODate(opts.to)) add(`(m.created_at AT TIME ZONE '${tz.replace(/'/g, "")}')::date <= ?::date`, opts.to);
   params.push(opts.limit ?? 1000);
   return query<MovementRow>(
-    `SELECT m.id, m.created_at, m.type, m.quantity, m.reference, m.note,
+    `SELECT m.id, m.created_at, m.type, m.quantity, m.balance_after::int AS balance_after, m.reference, m.note,
             u.name AS user_name, p.id AS product_id, p.name AS product_name, p.strength, p.form, p.ndc, p.dea_schedule,
             b.lot_number, b.expiry_date, br.name AS branch_name
-       FROM movements m
+       FROM (SELECT *, SUM(quantity) OVER (PARTITION BY product_id ORDER BY created_at, id ROWS UNBOUNDED PRECEDING) AS balance_after
+               FROM movements WHERE pharmacy_id = $1) m
        JOIN users u ON u.id = m.user_id
        JOIN products p ON p.id = m.product_id
        JOIN batches b ON b.id = m.batch_id

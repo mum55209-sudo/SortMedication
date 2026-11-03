@@ -86,7 +86,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <div className="table-wrap">
             <table>
               <thead>
-                <tr><th>Time</th><th>Product</th><th>What</th><th className="num">Qty</th><th>Lot</th><th>By</th><th>Reference</th></tr>
+                <tr><th>Time</th><th>Product</th><th>What</th><th className="num">In (+) / Out (−)</th><th className="num">In stock after</th><th>Lot</th><th>By</th><th>Reference</th></tr>
               </thead>
               <tbody>
                 {d.todays.map((m) => (
@@ -95,6 +95,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                     <td><Link href={`/products/${m.product_id}`}>{productLabel({ name: m.product_name, strength: m.strength, form: m.form })}</Link></td>
                     <td><MovementType type={m.type} /></td>
                     <td className="num"><MovementQty quantity={m.quantity} /></td>
+                    <td className="num"><strong>{m.balance_after}</strong></td>
                     <td>{m.lot_number}</td>
                     <td>{m.user_name}</td>
                     <td>{m.reference}</td>

@@ -35,3 +35,11 @@ describe("table lock-down", () => {
     expect(open?.n).toBe(0);
   });
 });
+
+describe("docs/database.sql", () => {
+  it("matches the migrations (regenerate with: npm run db:sql)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fullSchemaSql } = await import("./schema");
+    expect(readFileSync("docs/database.sql", "utf8")).toBe(fullSchemaSql());
+  });
+});

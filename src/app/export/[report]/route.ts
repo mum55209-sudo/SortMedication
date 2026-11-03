@@ -67,10 +67,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         type: q.get("type") || undefined,
         limit: 100_000,
       });
-      headers = ["time_utc", "branch", "name", "strength", "form", "ndc", "dea_schedule", "lot_number", "expiry_date", "type", "quantity_units", "by", "reference", "note"];
+      headers = ["time_utc", "branch", "name", "strength", "form", "ndc", "dea_schedule", "lot_number", "expiry_date", "type", "quantity_units", "in_stock_after_units", "by", "reference", "note"];
       rows = items.map((m) => [
         new Date(m.created_at).toISOString(), m.branch_name, m.product_name, m.strength, m.form, m.ndc, m.dea_schedule,
-        m.lot_number, m.expiry_date, movementLabel(m.type), m.quantity, m.user_name, m.reference, m.note,
+        m.lot_number, m.expiry_date, movementLabel(m.type), m.quantity, m.balance_after, m.user_name, m.reference, m.note,
       ]);
       break;
     }

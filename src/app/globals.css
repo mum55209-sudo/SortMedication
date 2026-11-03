@@ -65,6 +65,8 @@ h2 { font-size: 1.2rem; margin: 0 0 12px; }
 .page-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
 .page-head .subtitle { margin-bottom: 0; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+form.inline, fieldset.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0; padding: 0; border: 0; }
+form.inline input { width: auto; }
 
 .card {
   background: var(--card);

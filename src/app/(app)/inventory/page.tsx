@@ -26,7 +26,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
           <p className="subtitle">{ctx.branch.name} · {rows.length} products</p>
         </div>
         <div className="actions">
-          {can(ctx.user.role, "products.edit") && <Link className="button" href="/products/new">Add product</Link>}
+          {can(ctx.user.role, "products.edit") && <Link className="button" href="/products/new">+ Add medication</Link>}
           {can(ctx.user.role, "products.edit") && <Link className="button secondary" href="/import">Import CSV</Link>}
           <a className="button secondary" href={`/export/inventory?${exportQuery}`}>Export CSV</a>
         </div>
@@ -58,7 +58,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             </select>
           </label>
           <label className="inline">
-            <input type="checkbox" name="archived" value="1" defaultChecked={params.archived === "1"} /> Include archived
+            <input type="checkbox" name="archived" value="1" defaultChecked={params.archived === "1"} /> Include removed medications
           </label>
           <button type="submit">Search</button>
         </form>
@@ -71,7 +71,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
               <h2>{params.welcome ? "Welcome! " : ""}Your inventory is empty. Here&apos;s how to get started</h2>
               <ol>
                 <li>Add your suppliers in <Link href="/settings/suppliers">Settings → Suppliers</Link> (optional).</li>
-                <li>Add products one by one with <Link href="/products/new">Add product</Link>, or bring in a spreadsheet with <Link href="/import">Import CSV</Link>.</li>
+                <li>Add medications one by one with <Link href="/products/new">Add medication</Link>, or bring in a spreadsheet with <Link href="/import">Import CSV</Link>.</li>
                 <li>Record deliveries with <Link href="/receive">Receive stock</Link>, entering the lot number and expiry from the pack.</li>
                 <li>Invite your team in <Link href="/settings/staff">Settings → Staff</Link>.</li>
               </ol>
@@ -90,7 +90,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
                   <tr key={r.id} className={r.archived ? "muted" : rowClass(r)}>
                     <td>
                       <Link href={`/products/${r.id}`}><strong>{r.name}</strong></Link> {r.strength} {r.form}
-                      {r.archived && <span className="tag plain">Archived</span>}
+                      {r.archived && <span className="tag plain">Removed</span>}
                     </td>
                     <td className="nowrap">{r.ndc}</td>
                     <td className="num nowrap"><Qty units={r.total} packSize={r.pack_size} /></td>

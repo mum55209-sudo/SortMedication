@@ -15,14 +15,22 @@ trail. It stores no patient details.
   branch, and lands on its inventory. The owner adds staff with one of four roles:
   owner, pharmacist, technician or read-only.
 - **Dashboard** with counts of products running low, batches expiring soon and
-  expired batches, plus today's stock movements.
+  expired batches, a **Warnings** list (each product running low, and each
+  shipment that is late, delayed or has arrived), plus today's stock movements.
 - **Inventory list**, searchable by name, NDC, barcode or shelf, with filters
   and sorting. A barcode scanner typing into the search box jumps straight to
   the product.
+- **Add or remove medications**: "+ Add medication" on the Inventory page;
+  "Remove medication" on a medication's page hides it from the inventory but
+  keeps its stock history (needed for records), and "Restore medication"
+  brings it back.
 - **Products** with NDC, barcode, strength, form, pack size, category, DEA
   schedule (II–V), reorder level and quantity, supplier, prices, storage and
   shelf location.
 - **Receive stock** into a batch (lot, expiry, invoice, supplier).
+- **Shipments**: record an order you're expecting (supplier, order number,
+  expected date, products). Mark it delayed (with a new date and reason),
+  arrived or cancelled. A shipment past its expected date is flagged as late.
 - **Stock out**: dispense, return to supplier, expired/destroyed, count
   adjustment, or move to another branch. Suggests the batch that expires
   first and refuses to take more than a batch holds. Schedule II adjustments
@@ -33,6 +41,17 @@ trail. It stores no patient details.
 - **CSV import** of products, with optional opening stock.
 - **Settings**: pharmacy details, expiry warning period (30 days by default),
   branches, staff, suppliers, subscription and password.
+- **Patients**: basic details (name, date of birth, phone, address,
+  allergies, insurance) and what has been dispensed to each patient. Start a
+  dispense from the patient's page and the patient is saved with it. Hidden
+  from read-only staff. See "Patient information" below before using it with
+  real patients.
+- **In (+) and Out (−)**: stock coming in (Receive stock) is labelled "In
+  (+)" and stock going out is labelled "Out (−)" across the app.
+- **Stock record with running count**: every movement in a medication's
+  history, the dashboard and the audit log shows "In stock after", the number
+  of units on hand right after that In or Out. In Supabase, the
+  `stock_record` view shows the same.
 - **Trial ending**: after the trial, an unpaid pharmacy becomes read-only (it
   can still view and export everything).
 
@@ -98,8 +117,18 @@ itself the first time it starts.
 5. Put it in Vercel (below). To try Supabase from your own computer too, copy
    `.env.example` to `.env.local` and paste it after `DATABASE_URL=`.
 
+**Prefer to create the tables yourself?** Open **SQL Editor** in Supabase,
+paste in everything from [`docs/database.sql`](docs/database.sql) and click
+**Run**. Do this on a new, empty Supabase project. The app sees the tables are
+there and won't make them again. (After changing `src/lib/schema.ts`, run
+`npm run db:sql` to update that file.)
+
 When the app has started once, open **Table Editor** in Supabase and you will
-see its tables (`pharmacies`, `products`, `batches`, `movements` and so on).
+see its tables (`pharmacies`, `products`, `batches`, `movements`,
+`shipments`, `patients` and so on). Two read-only views are handy to look at there:
+`inventory_counts` (how many units of each product are on the shelf, and
+whether it is running low) and `shipment_warnings` (shipments that are late,
+delayed or have just arrived).
 
 The app talks to the database directly and does not use Supabase's own web
 API, so it switches on *row level security* for every table. That keeps the
@@ -107,6 +136,27 @@ data hidden from that API; you don't need to set up any rules. Connections are
 encrypted. For the strictest certificate check, download the certificate from
 **Project Settings > Database > SSL configuration** and add its text as
 `DATABASE_CA_CERT` (optional).
+
+## Patient information (HIPAA)
+
+Patient names, dates of birth, allergies and what was dispensed to whom are
+*protected health information* under HIPAA, the US health privacy law. Storing
+them for pharmacies makes SortMedication a "business associate", so before
+real patients go in:
+
+1. **Sign a BAA with Supabase.** A Business Associate Agreement is a contract
+   saying Supabase will protect the data. Supabase only offers one on its
+   **Team plan or higher, with the HIPAA add-on** (Dashboard > Organization
+   settings > Billing; see supabase.com/docs/guides/security/hipaa-compliance).
+   Vercel also needs a BAA (Enterprise plan or its HIPAA add-on) because
+   patient details pass through it.
+2. **Sign a BAA with each pharmacy** that uses the patient pages.
+3. **Keep access tight.** Only owners, pharmacists and technicians can open
+   Patients; give read-only to anyone who doesn't need it. Each patient
+   record added or changed is written to the audit log (without the health
+   details themselves).
+
+Until then, use made-up test patients only.
 
 ## Putting it online (Vercel)
 

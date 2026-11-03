@@ -25,12 +25,13 @@ export type Permission =
   | "products.edit" // add and edit products, import CSV
   | "suppliers.edit"
   | "settings.edit" // pharmacy details, branches, staff, billing
+  | "patients" // view and edit patient records (health information)
   ;
 
 const PERMISSIONS: Record<Role, Permission[]> = {
-  owner: ["stock.receive", "stock.out", "stock.adjust", "products.edit", "suppliers.edit", "settings.edit"],
-  pharmacist: ["stock.receive", "stock.out", "stock.adjust", "products.edit", "suppliers.edit"],
-  technician: ["stock.receive", "stock.out"],
+  owner: ["stock.receive", "stock.out", "stock.adjust", "products.edit", "suppliers.edit", "settings.edit", "patients"],
+  pharmacist: ["stock.receive", "stock.out", "stock.adjust", "products.edit", "suppliers.edit", "patients"],
+  technician: ["stock.receive", "stock.out", "patients"],
   readonly: [],
 };
 

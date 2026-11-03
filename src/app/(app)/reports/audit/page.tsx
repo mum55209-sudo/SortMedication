@@ -54,7 +54,7 @@ async function StockLog({ ctx, from, to, type }: { ctx: Awaited<ReturnType<typeo
       ) : (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>When</th><th>Branch</th><th>Product</th><th>What</th><th className="num">Qty</th><th>Lot</th><th>By</th><th>Reference</th><th>Note</th></tr></thead>
+            <thead><tr><th>When</th><th>Branch</th><th>Product</th><th>What</th><th className="num">In (+) / Out (−)</th><th className="num">In stock after</th><th>Lot</th><th>By</th><th>Reference</th><th>Note</th></tr></thead>
             <tbody>
               {rows.map((m) => (
                 <tr key={m.id}>
@@ -66,6 +66,7 @@ async function StockLog({ ctx, from, to, type }: { ctx: Awaited<ReturnType<typeo
                   </td>
                   <td><MovementType type={m.type} /></td>
                   <td className="num"><MovementQty quantity={m.quantity} /></td>
+                    <td className="num"><strong>{m.balance_after}</strong></td>
                   <td>{m.lot_number}</td>
                   <td>{m.user_name}</td>
                   <td>{m.reference}</td>

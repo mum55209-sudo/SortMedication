@@ -31,7 +31,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <h2>Welcome! Here&apos;s how to get started</h2>
           <ol>
             <li>Add your suppliers in <Link href="/settings/suppliers">Settings → Suppliers</Link> (optional).</li>
-            <li>Add products one by one in <Link href="/products/new">Inventory → Add product</Link>, or bring in a spreadsheet with <Link href="/import">Import CSV</Link>.</li>
+            <li>Add products one by one in <Link href="/products/new">Inventory → Add medication</Link>, or bring in a spreadsheet with <Link href="/import">Import CSV</Link>.</li>
             <li>Record deliveries with <Link href="/receive">Receive stock</Link>, entering the lot number and expiry from the pack.</li>
             <li>Invite your team in <Link href="/settings/staff">Settings → Staff</Link>.</li>
           </ol>

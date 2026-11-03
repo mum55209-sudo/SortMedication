@@ -290,7 +290,7 @@ export async function receiveStock(ctx: Ctx, input: ReceiveInput, db?: Queryable
 
   const run = async (tx: Queryable) => {
     const product = await getProductWith(tx, ctx, input.productId);
-    if (product.archived) throw new UserError("This product is archived. Restore it before receiving stock.");
+    if (product.archived) throw new UserError("This medication was removed. Restore it on its page before receiving stock.");
     await checkSupplier(tx, ctx, input.supplierId);
     const batchId = await findOrCreateBatch(tx, ctx, product.id, {
       lot,

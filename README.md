@@ -20,6 +20,10 @@ trail. It stores no patient details.
 - **Inventory list**, searchable by name, NDC, barcode or shelf, with filters
   and sorting. A barcode scanner typing into the search box jumps straight to
   the product.
+- **Add or remove medications**: "+ Add medication" on the Inventory page;
+  "Remove medication" on a medication's page hides it from the inventory but
+  keeps its stock history (needed for records), and "Restore medication"
+  brings it back.
 - **Products** with NDC, barcode, strength, form, pack size, category, DEA
   schedule (II–V), reorder level and quantity, supplier, prices, storage and
   shelf location.

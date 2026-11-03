@@ -41,7 +41,7 @@ export default async function ProductPage({
           <p className="subtitle">
             {product.ndc && <>NDC {product.ndc} · </>}
             {branch?.name} · <Flags {...flags} dea={product.dea_schedule} />
-            {product.archived && <span className="tag plain">Archived</span>}
+            {product.archived && <span className="tag plain">Removed</span>}
           </p>
         </div>
         <div className="actions">
@@ -127,12 +127,12 @@ export default async function ProductPage({
         <ActionForm
           action={archiveProductAction}
           className="actions"
-          confirm={product.archived ? undefined : "Archive this product? It will be hidden from the inventory list, but its history is kept."}
+          confirm={product.archived ? undefined : "Remove this medication? It will be hidden from the inventory list, but its stock history is kept for your records. You can restore it later."}
         >
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="archived" value={product.archived ? "false" : "true"} />
           <button type="submit" className={product.archived ? "secondary" : "danger"}>
-            {product.archived ? "Restore product" : "Archive product"}
+            {product.archived ? "Restore medication" : "Remove medication"}
           </button>
         </ActionForm>
       )}

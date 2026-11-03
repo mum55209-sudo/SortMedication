@@ -32,7 +32,7 @@ export default async function ShipmentsPage() {
         <div className="card">
           <h2>Add a shipment</h2>
           {products.length === 0 ? (
-            <p className="muted">Add products first in <Link href="/products/new">Inventory → Add product</Link>.</p>
+            <p className="muted">Add products first in <Link href="/products/new">Inventory → Add medication</Link>.</p>
           ) : (
             <ActionForm action={createShipmentAction} resetOnSuccess>
               <div className="fields">

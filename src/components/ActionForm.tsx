@@ -5,6 +5,11 @@
 
 import { useState, useTransition, type ReactNode } from "react";
 
+function isRedirect(err: unknown): boolean {
+  const digest = (err as { digest?: unknown } | null)?.digest;
+  return typeof digest === "string" && (digest.startsWith("NEXT_REDIRECT") || digest.startsWith("NEXT_NOT_FOUND") || digest.startsWith("NEXT_HTTP_ERROR_FALLBACK"));
+}
+
 type Action = (formData: FormData) => Promise<{ error?: string; message?: string } | void>;
 
 export function ActionForm({
@@ -35,7 +40,18 @@ export function ActionForm({
         const submitter = (event.nativeEvent as SubmitEvent).submitter;
         const data = new FormData(form, submitter);
         startTransition(async () => {
-          const result = await action(data);
+          let result: Awaited<ReturnType<Action>>;
+          try {
+            result = await action(data);
+          } catch (err) {
+            // A redirect from the server is how a successful form moves on.
+            if (isRedirect(err)) throw err;
+            // Anything else (server down, database not reachable...) would
+            // otherwise make the button silently do nothing.
+            setMessage(null);
+            setError("Something went wrong on our side, so this didn't go through. Please try again in a moment.");
+            return;
+          }
           setError(result?.error ?? null);
           setMessage(result?.message ?? null);
           if (!result?.error && resetOnSuccess) form.reset();

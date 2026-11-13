@@ -7,17 +7,32 @@ import { formatDate, Qty } from "@/components/ui";
 import { can, expiryStatus, MOVEMENT_TYPES, STOCK_OUT_TYPES, suggestBatch, todayISO } from "@/lib/domain";
 import { requirePage } from "@/lib/session";
 import { getBatches, getProduct, productLabel } from "@/lib/stock";
+import { getPatient, patientName } from "@/lib/patients";
 
-export default async function StockOutPage({ searchParams }: { searchParams: Promise<{ product?: string; q?: string }> }) {
+export default async function StockOutPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ product?: string; q?: string; patient?: string }>;
+}) {
   const ctx = await requirePage("stock.out");
-  const { product: productId, q } = await searchParams;
+  const { product: productId, q, patient: patientId } = await searchParams;
+  const patient = patientId && can(ctx.user.role, "patients") ? await getPatient(ctx, patientId).catch(() => null) : null;
+  const forPatient = patient && (
+    <>
+      <p className="notice">
+        Dispensing to <Link href={`/patients/${patient.id}`}>{patientName(patient)}</Link> (born {formatDate(patient.date_of_birth)})
+      </p>
+      {patient.allergies && <p className="warning"><strong>Check allergies:</strong> {patient.allergies}</p>}
+    </>
+  );
 
   if (!productId) {
     return (
       <>
-        <h1>Stock out</h1>
+        <h1>Stock out (−)</h1>
         <p className="subtitle">Dispense, return, destroy, correct a count or move stock. First choose the product.</p>
-        <ProductPicker ctx={ctx} q={q} basePath="/stock-out" />
+        {forPatient}
+        <ProductPicker ctx={ctx} q={q} basePath="/stock-out" keep={patient ? { patient: patient.id } : {}} />
       </>
     );
   }
@@ -32,8 +47,9 @@ export default async function StockOutPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <p><Link href={`/products/${product.id}`}>← {productLabel(product)}</Link></p>
-      <h1>Stock out</h1>
+      <h1>Stock out (−)</h1>
       <p className="subtitle">{productLabel(product)}{product.ndc && ` · NDC ${product.ndc}`} · pack of {product.pack_size}</p>
+      {forPatient}
       {product.dea_schedule !== "none" && (
         <p className="warning">
           <strong>Controlled substance, Schedule {product.dea_schedule}.</strong>{" "}
@@ -50,6 +66,7 @@ export default async function StockOutPage({ searchParams }: { searchParams: Pro
             <input type="hidden" name="productId" value={product.id} />
             <input type="hidden" name="packSize" value={product.pack_size} />
             <input type="hidden" name="deaSchedule" value={product.dea_schedule} />
+            {patient && <input type="hidden" name="patientId" value={patient.id} />}
             <fieldset className="group">
               <legend>Which batch?</legend>
               {batches.map((b) => {
@@ -89,7 +106,9 @@ export default async function StockOutPage({ searchParams }: { searchParams: Pro
               <label>
                 Prescription number or reference
                 <input name="reference" placeholder="Rx 44821" />
-                <span className="hint">Never enter patient names.</span>
+                <span className="hint">
+                  {patient ? "The patient is saved with this dispense." : "To link a patient, start from their page in Patients."}
+                </span>
               </label>
               {otherBranches.length > 0 && types.includes("transfer_out") && (
                 <label>

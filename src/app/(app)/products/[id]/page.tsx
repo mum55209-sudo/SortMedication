@@ -41,12 +41,12 @@ export default async function ProductPage({
           <p className="subtitle">
             {product.ndc && <>NDC {product.ndc} · </>}
             {branch?.name} · <Flags {...flags} dea={product.dea_schedule} />
-            {product.archived && <span className="tag plain">Archived</span>}
+            {product.archived && <span className="tag plain">Removed</span>}
           </p>
         </div>
         <div className="actions">
-          {can(role, "stock.receive") && !product.archived && <Link className="button" href={`/receive?product=${id}`}>Receive stock</Link>}
-          {can(role, "stock.out") && !product.archived && <Link className="button secondary" href={`/stock-out?product=${id}`}>Stock out</Link>}
+          {can(role, "stock.receive") && !product.archived && <Link className="button" href={`/receive?product=${id}`}>In (+) Receive stock</Link>}
+          {can(role, "stock.out") && !product.archived && <Link className="button secondary" href={`/stock-out?product=${id}`}>Out (−) Stock out</Link>}
           {can(role, "products.edit") && <Link className="button secondary" href={`/products/${id}/edit`}>Edit</Link>}
         </div>
       </div>
@@ -104,13 +104,14 @@ export default async function ProductPage({
         ) : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>When</th><th>What</th><th className="num">Qty</th><th>Lot</th><th>By</th><th>Reference</th><th>Note</th></tr></thead>
+              <thead><tr><th>When</th><th>What</th><th className="num">In (+) / Out (−)</th><th className="num">In stock after</th><th>Lot</th><th>By</th><th>Reference</th><th>Note</th></tr></thead>
               <tbody>
                 {history.map((m) => (
                   <tr key={m.id}>
                     <td className="nowrap">{formatDateTime(m.created_at)}</td>
                     <td><MovementType type={m.type} /></td>
                     <td className="num"><MovementQty quantity={m.quantity} /></td>
+                    <td className="num"><strong>{m.balance_after}</strong></td>
                     <td>{m.lot_number}</td>
                     <td>{m.user_name}</td>
                     <td>{m.reference}</td>
@@ -127,12 +128,12 @@ export default async function ProductPage({
         <ActionForm
           action={archiveProductAction}
           className="actions"
-          confirm={product.archived ? undefined : "Archive this product? It will be hidden from the inventory list, but its history is kept."}
+          confirm={product.archived ? undefined : "Remove this medication? It will be hidden from the inventory list, but its stock history is kept for your records. You can restore it later."}
         >
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="archived" value={product.archived ? "false" : "true"} />
           <button type="submit" className={product.archived ? "secondary" : "danger"}>
-            {product.archived ? "Restore product" : "Archive product"}
+            {product.archived ? "Restore medication" : "Remove medication"}
           </button>
         </ActionForm>
       )}

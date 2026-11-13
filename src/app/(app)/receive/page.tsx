@@ -14,7 +14,7 @@ export default async function ReceivePage({ searchParams }: { searchParams: Prom
   if (!productId) {
     return (
       <>
-        <h1>Receive stock</h1>
+        <h1>Stock in (+)</h1>
         <p className="subtitle">Record a delivery. First choose the product.</p>
         <ProductPicker ctx={ctx} q={q} basePath="/receive" />
       </>
@@ -26,7 +26,7 @@ export default async function ReceivePage({ searchParams }: { searchParams: Prom
   return (
     <>
       <p><Link href="/receive">← Choose another product</Link></p>
-      <h1>Receive stock</h1>
+      <h1>Stock in (+)</h1>
       <p className="subtitle">{productLabel(product)}{product.ndc && ` · NDC ${product.ndc}`} · pack of {product.pack_size}</p>
       <div className="card">
         <ActionForm action={receiveAction}>

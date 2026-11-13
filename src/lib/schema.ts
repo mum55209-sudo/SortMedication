@@ -136,4 +136,126 @@ CREATE TABLE google_signups (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 `,
+  // 3: Shipments (orders on their way from a supplier), so the app can warn
+  // when one is late or has arrived. Plus two read-only views for looking at
+  // the data in Supabase's Table Editor: inventory_counts (how much of each
+  // product is on the shelf, and whether it is running low) and
+  // shipment_warnings (shipments that are late or have just arrived).
+  `
+CREATE TABLE shipments (
+  id TEXT PRIMARY KEY,
+  pharmacy_id TEXT NOT NULL REFERENCES pharmacies(id),
+  branch_id TEXT NOT NULL REFERENCES branches(id),
+  supplier_id TEXT REFERENCES suppliers(id),
+  reference TEXT NOT NULL DEFAULT '',
+  expected_date DATE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'ordered' CHECK (status IN ('ordered', 'delayed', 'arrived', 'cancelled')),
+  delay_reason TEXT NOT NULL DEFAULT '',
+  arrived_at TIMESTAMPTZ,
+  note TEXT NOT NULL DEFAULT '',
+  created_by TEXT REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX shipments_branch_idx ON shipments (pharmacy_id, branch_id, status);
+
+CREATE TABLE shipment_items (
+  id TEXT PRIMARY KEY,
+  pharmacy_id TEXT NOT NULL REFERENCES pharmacies(id),
+  shipment_id TEXT NOT NULL REFERENCES shipments(id),
+  product_id TEXT NOT NULL REFERENCES products(id),
+  quantity INTEGER NOT NULL CHECK (quantity > 0)
+);
+CREATE INDEX shipment_items_shipment_idx ON shipment_items (shipment_id);
+
+CREATE VIEW inventory_counts WITH (security_invoker = true) AS
+SELECT p.pharmacy_id, p.branch_id, p.id AS product_id, p.name, p.strength, p.form, p.ndc,
+       COALESCE(SUM(m.quantity), 0)::int AS on_hand,
+       p.reorder_level,
+       (p.reorder_level > 0 AND COALESCE(SUM(m.quantity), 0) <= p.reorder_level) AS running_low
+  FROM products p
+  LEFT JOIN movements m ON m.product_id = p.id
+ WHERE p.archived = false
+ GROUP BY p.id;
+
+CREATE VIEW shipment_warnings WITH (security_invoker = true) AS
+SELECT s.pharmacy_id, s.branch_id, s.id AS shipment_id, s.reference, s.expected_date, s.status,
+       s.delay_reason, s.arrived_at, sup.name AS supplier_name,
+       CASE WHEN s.status = 'arrived' THEN 'arrived' ELSE 'delayed' END AS alert
+  FROM shipments s
+  LEFT JOIN suppliers sup ON sup.id = s.supplier_id
+ WHERE s.status = 'delayed'
+    OR (s.status = 'ordered' AND s.expected_date < CURRENT_DATE)
+    OR (s.status = 'arrived' AND s.arrived_at > now() - INTERVAL '7 days');
+`,
+  // 4: Basic patient records, and which patient a dispense was for. This is
+  // protected health information under HIPAA: see "Patient information" in
+  // the README before storing real patients.
+  `
+CREATE TABLE patients (
+  id TEXT PRIMARY KEY,
+  pharmacy_id TEXT NOT NULL REFERENCES pharmacies(id),
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  date_of_birth DATE NOT NULL,
+  phone TEXT NOT NULL DEFAULT '',
+  address TEXT NOT NULL DEFAULT '',
+  allergies TEXT NOT NULL DEFAULT '',
+  insurance_provider TEXT NOT NULL DEFAULT '',
+  insurance_member_id TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX patients_name_idx ON patients (pharmacy_id, last_name, first_name);
+
+ALTER TABLE movements ADD COLUMN patient_id TEXT REFERENCES patients(id);
+CREATE INDEX movements_patient_idx ON movements (patient_id);
+`,
+  // 5: stock_record view for Supabase's Table Editor: every stock movement
+  // labelled In (+) or Out (-), with how many units of that medication are in
+  // stock right after it.
+  `
+CREATE VIEW stock_record WITH (security_invoker = true) AS
+SELECT m.pharmacy_id, m.branch_id, m.product_id, p.name, p.strength, p.form, m.created_at,
+       CASE WHEN m.quantity > 0 THEN 'In (+)' ELSE 'Out (-)' END AS direction,
+       m.type, m.quantity,
+       (SUM(m.quantity) OVER (PARTITION BY m.product_id ORDER BY m.created_at, m.id ROWS UNBOUNDED PRECEDING))::int AS in_stock_after,
+       m.reference, m.note
+  FROM movements m
+  JOIN products p ON p.id = m.product_id;
+`,
 ];
+
+// The whole database as one SQL script, for pasting into Supabase's SQL
+// Editor. It records each step in schema_migrations, so when the app starts
+// it sees the tables are already there and doesn't create them again.
+// docs/database.sql is this script; a test checks it stays up to date.
+export function fullSchemaSql(): string {
+  const parts = [
+    "-- SortMedication database. Paste all of this into Supabase's SQL Editor and click Run.",
+    "-- Made from src/lib/schema.ts; don't edit by hand. Safe to run only on an empty database.",
+    "",
+    "BEGIN;",
+    "",
+    "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now());",
+  ];
+  MIGRATIONS.forEach((sql, index) => {
+    parts.push("", `-- Step ${index + 1}`, sql.trim(), `INSERT INTO schema_migrations (version) VALUES (${index + 1});`);
+  });
+  parts.push(
+    "",
+    "-- Hide every table from Supabase's public Data API (the app connects directly and isn't affected).",
+    "DO $$",
+    "DECLARE t record;",
+    "BEGIN",
+    "  FOR t IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND NOT rowsecurity LOOP",
+    "    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t.tablename);",
+    "  END LOOP;",
+    "END $$;",
+    "",
+    "COMMIT;",
+    "",
+  );
+  return parts.join("\n");
+}

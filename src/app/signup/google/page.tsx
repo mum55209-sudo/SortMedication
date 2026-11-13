@@ -6,6 +6,8 @@ import { ActionForm } from "@/components/ActionForm";
 import { getGoogleSignup } from "@/lib/accounts";
 import { PRICE_PER_MONTH_USD, TRIAL_DAYS } from "@/lib/domain";
 import { getContext, GOOGLE_SIGNUP_COOKIE } from "@/lib/session";
+import { ThemeSwitch } from "@/components/ThemeSwitch";
+import { savedTheme } from "@/lib/theme";
 
 // The last step of "Sign up with Google": Google told us who you are, now
 // tell us about your pharmacy.
@@ -16,6 +18,7 @@ export default async function GoogleSignupPage() {
   if (!pending) redirect("/signup?google=expired");
   return (
     <main className="narrow">
+      <ThemeSwitch initial={await savedTheme()} className="theme-corner" />
       <p><Link href="/signup">← Back</Link></p>
       <div className="card">
         <h1>Almost done</h1>

@@ -6,12 +6,15 @@ import { GoogleButton } from "@/components/GoogleButton";
 import { TRIAL_DAYS } from "@/lib/domain";
 import { googleProblemText } from "@/lib/google";
 import { getContext } from "@/lib/session";
+import { ThemeSwitch } from "@/components/ThemeSwitch";
+import { savedTheme } from "@/lib/theme";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ google?: string }> }) {
   if (await getContext()) redirect("/inventory");
   const googleProblem = googleProblemText((await searchParams).google);
   return (
     <main className="narrow">
+      <ThemeSwitch initial={await savedTheme()} className="theme-corner" />
       <p><Link href="/">← SortMedication</Link></p>
       <div className="card">
         <h1>Sign in</h1>

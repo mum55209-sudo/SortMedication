@@ -3,7 +3,7 @@ import { savedTheme } from "@/lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SortMedication",
+  title: "SortMed",
   description: "Stock control for independent pharmacies: batches, expiry dates and a full audit trail.",
 };
 

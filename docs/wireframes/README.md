@@ -1,6 +1,6 @@
 # Website wireframes
 
-Low-detail sketches of how the SortMedication website will look, in black, white and grey.
+Low-detail sketches of how the SortMed website will look, in black, white and grey.
 They show layout only. Colours from `DESIGN.md` come later, and the medicines and numbers are examples.
 
 This is the chosen direction: the home and sign-up pages from concept A, and the inventory screen from concept B.

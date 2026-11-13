@@ -84,7 +84,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
       return new Response("Unknown report.", { status: 404 });
   }
 
-  const filename = `sortmedication-${report}-${todayISO()}.csv`;
+  const filename = `sortmed-${report}-${todayISO()}.csv`;
   return new Response(toCsv(headers, rows), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

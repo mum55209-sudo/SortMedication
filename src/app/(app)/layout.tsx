@@ -27,7 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <>
       <header className="topbar">
-        <Link href="/dashboard" className="logo">SortMedication</Link>
+        <Link href="/dashboard" className="logo">SortMed</Link>
         <Nav links={links} />
         <div className="who">
           <ThemeSwitch initial={theme} />

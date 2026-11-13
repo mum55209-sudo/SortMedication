@@ -233,7 +233,7 @@ SELECT m.pharmacy_id, m.branch_id, m.product_id, p.name, p.strength, p.form, m.c
 // docs/database.sql is this script; a test checks it stays up to date.
 export function fullSchemaSql(): string {
   const parts = [
-    "-- SortMedication database. Paste all of this into Supabase's SQL Editor and click Run.",
+    "-- SortMed database. Paste all of this into Supabase's SQL Editor and click Run.",
     "-- Made from src/lib/schema.ts; don't edit by hand. Safe to run only on an empty database.",
     "",
     "BEGIN;",

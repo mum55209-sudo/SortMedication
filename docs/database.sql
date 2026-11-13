@@ -1,4 +1,4 @@
--- SortMedication database. Paste all of this into Supabase's SQL Editor and click Run.
+-- SortMed database. Paste all of this into Supabase's SQL Editor and click Run.
 -- Made from src/lib/schema.ts; don't edit by hand. Safe to run only on an empty database.
 
 BEGIN;

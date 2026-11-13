@@ -15,7 +15,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
   return (
     <main className="narrow">
       <ThemeSwitch initial={await savedTheme()} className="theme-corner" />
-      <p><Link href="/">← SortMedication</Link></p>
+      <p><Link href="/">← SortMed</Link></p>
       <div className="card">
         <h1>Start your free trial</h1>
         <p className="subtitle">{TRIAL_DAYS} days free, no card needed. Then ${PRICE_PER_MONTH_USD}/month per pharmacy.</p>
@@ -33,7 +33,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
           </label>
           <label className="inline">
             <input type="checkbox" name="agree" value="yes" required />
-            <span>I understand SortMedication is for stock only, and I won&apos;t enter patient names or details.</span>
+            <span>I understand SortMed is for stock only, and I won&apos;t enter patient names or details.</span>
           </label>
           <button type="submit">Create account</button>
         </ActionForm>

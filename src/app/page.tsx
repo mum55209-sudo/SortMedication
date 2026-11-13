@@ -10,7 +10,7 @@ export default async function Home() {
   return (
     <>
       <header className="topbar">
-        <span className="logo">SortMedication</span>
+        <span className="logo">SortMed</span>
         <nav />
         <div className="who">
           <ThemeSwitch initial={await savedTheme()} />

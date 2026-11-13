@@ -15,7 +15,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <main className="narrow">
       <ThemeSwitch initial={await savedTheme()} className="theme-corner" />
-      <p><Link href="/">← SortMedication</Link></p>
+      <p><Link href="/">← SortMed</Link></p>
       <div className="card">
         <h1>Sign in</h1>
         {googleProblem && <p className="error" role="alert">{googleProblem}</p>}

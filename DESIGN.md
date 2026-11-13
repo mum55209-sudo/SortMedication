@@ -1,6 +1,6 @@
-# SortMedication design guide
+# SortMed design guide
 
-SortMedication uses a **square design**. Everything on screen is built from
+SortMed uses a **square design**. Everything on screen is built from
 boxes with sharp corners that sit on a tidy grid. The look should feel clean,
 calm and organised, like labelled drawers in a pharmacy.
 

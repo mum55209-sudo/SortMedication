@@ -1,4 +1,4 @@
-# SortMedication
+# SortMed
 
 Stock-control software for independent US pharmacies, sold as a subscription
 ($80/month per pharmacy, 14-day free trial).
@@ -105,7 +105,7 @@ itself the first time it starts.
 
 1. Go to https://supabase.com, click **Start your project** and sign in (you
    can use your GitHub account).
-2. Click **New project**. Pick a name (for example `sortmedication`), make up a
+2. Click **New project**. Pick a name (for example `sortmed`), make up a
    strong **database password** and save it somewhere safe, and choose the
    region closest to your pharmacies (for the USA, **East US**). Click
    **Create new project** and wait a minute or two.
@@ -143,7 +143,7 @@ encrypted. For the strictest certificate check, download the certificate from
 
 Patient names, dates of birth, allergies and what was dispensed to whom are
 *protected health information* under HIPAA, the US health privacy law. Storing
-them for pharmacies makes SortMedication a "business associate", so before
+them for pharmacies makes SortMed a "business associate", so before
 real patients go in:
 
 1. **Sign a BAA with Supabase.** A Business Associate Agreement is a contract
@@ -179,17 +179,17 @@ Getting the keys takes about 10 minutes and is free:
 1. Go to https://console.cloud.google.com and sign in with your Google
    account. If asked, agree to the terms.
 2. At the top, click the project picker, then **New project**. Name it
-   `SortMedication` and click **Create**. Make sure it is selected.
+   `SortMed` and click **Create**. Make sure it is selected.
 3. In the search bar, type **Google Auth Platform** and open it. Click
-   **Get started**. Fill in the app name (`SortMedication`) and your support
+   **Get started**. Fill in the app name (`SortMed`) and your support
    email, choose **External** for the audience, add your email as the contact,
    agree, and click **Create**.
 4. In the left menu, open **Clients**, then **Create client**.
-   - Application type: **Web application**. Name: `SortMedication`.
+   - Application type: **Web application**. Name: `SortMed`.
    - Under **Authorised redirect URIs**, click **Add URI** and paste
      `http://localhost:3000/auth/google/callback`. When the app is online,
      add a second one with your real address, for example
-     `https://sortmedication.vercel.app/auth/google/callback`.
+     `https://sortmed.vercel.app/auth/google/callback`.
    - Click **Create**.
 5. Google shows a **Client ID** and a **Client secret**. Copy both. Keep the
    secret private, like a password.
@@ -203,7 +203,7 @@ Getting the keys takes about 10 minutes and is free:
 
    On Vercel, add the same two under **Settings → Environment Variables**,
    plus `APP_URL` set to your site address (for example
-   `https://sortmedication.vercel.app`), then redeploy.
+   `https://sortmed.vercel.app`), then redeploy.
 7. Restart the app (`npm run dev`) and press "Sign up with Google".
 
 While Google lists the app as "Testing", only the Google accounts you add

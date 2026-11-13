@@ -21,8 +21,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <p className="subtitle">{ctx.branch.name} · expiry warnings at {ctx.pharmacy.expiry_warning_days} days</p>
         </div>
         <div className="actions">
-          {can(role, "stock.receive") && <Link className="button" href="/receive">Receive stock</Link>}
-          {can(role, "stock.out") && <Link className="button secondary" href="/stock-out">Stock out</Link>}
+          {can(role, "stock.receive") && <Link className="button" href="/receive">In (+) Receive stock</Link>}
+          {can(role, "stock.out") && <Link className="button secondary" href="/stock-out">Out (−) Stock out</Link>}
         </div>
       </div>
 
@@ -31,7 +31,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <h2>Welcome! Here&apos;s how to get started</h2>
           <ol>
             <li>Add your suppliers in <Link href="/settings/suppliers">Settings → Suppliers</Link> (optional).</li>
-            <li>Add products one by one in <Link href="/products/new">Inventory → Add product</Link>, or bring in a spreadsheet with <Link href="/import">Import CSV</Link>.</li>
+            <li>Add products one by one in <Link href="/products/new">Inventory → Add medication</Link>, or bring in a spreadsheet with <Link href="/import">Import CSV</Link>.</li>
             <li>Record deliveries with <Link href="/receive">Receive stock</Link>, entering the lot number and expiry from the pack.</li>
             <li>Invite your team in <Link href="/settings/staff">Settings → Staff</Link>.</li>
           </ol>
@@ -86,7 +86,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <div className="table-wrap">
             <table>
               <thead>
-                <tr><th>Time</th><th>Product</th><th>What</th><th className="num">Qty</th><th>Lot</th><th>By</th><th>Reference</th></tr>
+                <tr><th>Time</th><th>Product</th><th>What</th><th className="num">In (+) / Out (−)</th><th className="num">In stock after</th><th>Lot</th><th>By</th><th>Reference</th></tr>
               </thead>
               <tbody>
                 {d.todays.map((m) => (
@@ -95,6 +95,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                     <td><Link href={`/products/${m.product_id}`}>{productLabel({ name: m.product_name, strength: m.strength, form: m.form })}</Link></td>
                     <td><MovementType type={m.type} /></td>
                     <td className="num"><MovementQty quantity={m.quantity} /></td>
+                    <td className="num"><strong>{m.balance_after}</strong></td>
                     <td>{m.lot_number}</td>
                     <td>{m.user_name}</td>
                     <td>{m.reference}</td>

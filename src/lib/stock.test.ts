@@ -174,3 +174,23 @@ describe("CSV", () => {
     expect(isValidNdc("12345")).toBe(false);
   });
 });
+
+describe("stock record", () => {
+  it("shows how many units are in stock after each movement", async () => {
+    await createPharmacyAccount({ pharmacyName: "Record Pharmacy", ownerName: "Owner", email: "record@example.com", password: "password123" });
+    const ctx = await contextForUser(await verifyLogin("record@example.com", "password123"), null);
+    const productId = await createProduct(ctx, parseProductInput({ name: "Ibuprofen", pack_size: "1" }));
+    await receiveStock(ctx, { productId, lotNumber: "A", expiryDate: "2099-01-01", receivedDate: "", quantity: 40, supplierId: null, invoice: "" });
+    await receiveStock(ctx, { productId, lotNumber: "B", expiryDate: "2099-06-01", receivedDate: "", quantity: 10, supplierId: null, invoice: "" });
+    const [batch] = await getBatches(ctx, productId);
+    await stockOut(ctx, { productId, batchId: batch.id, type: "dispensed", quantity: 15, reference: "Rx 9", note: "" });
+    const log = await movementLog(ctx, { productId });
+    expect(log.map((m) => [m.quantity, m.balance_after])).toEqual([[-15, 35], [10, 50], [40, 40]]);
+    const view = await query<{ direction: string; in_stock_after: number }>(
+      "SELECT direction, in_stock_after FROM stock_record WHERE product_id = $1 ORDER BY created_at, in_stock_after",
+      [productId],
+    );
+    expect(view.map((v) => v.direction)).toContain("Out (-)");
+    expect(view.map((v) => v.in_stock_after).sort((a, b) => a - b)).toEqual([35, 40, 50]);
+  });
+});

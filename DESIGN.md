@@ -76,3 +76,12 @@ All of the styles live in one file: `src/app/globals.css`.
 - [ ] Content sits in `.card` boxes, and groups of cards sit in a `.grid`.
 - [ ] Uses the colour names above, not new colours.
 - [ ] Looks right at phone width (cards stack, nothing scrolls sideways).
+
+## Light and dark mode
+
+Every colour is a variable at the top of `src/app/globals.css`. Dark mode
+swaps those variables, so new screens get it for free as long as they use
+`var(--...)` instead of fixed colours. People pick **Light**, **Dark** or
+**Auto** (follow the device) with the switch in the top bar; the choice is
+saved in a `theme` cookie. Printed reports always use light colours. The
+"Sign in with Google" button stays white in both modes, as Google asks.

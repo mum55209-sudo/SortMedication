@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PRICE_PER_MONTH_USD, TRIAL_DAYS } from "@/lib/domain";
+import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { getContext } from "@/lib/session";
+import { savedTheme } from "@/lib/theme";
 
 export default async function Home() {
   if (await getContext()) redirect("/inventory");
@@ -11,6 +13,7 @@ export default async function Home() {
         <span className="logo">SortMedication</span>
         <nav />
         <div className="who">
+          <ThemeSwitch initial={await savedTheme()} />
           <Link href="/login">Sign in</Link>
         </div>
       </header>

@@ -25,6 +25,7 @@ import {
   type Permission,
 } from "./domain";
 import { UserError } from "./errors";
+import { checkPatient } from "./patients";
 
 export interface Product {
   id: string;
@@ -224,12 +225,21 @@ async function batchQuantity(db: Queryable, batchId: string): Promise<number> {
 async function insertMovement(
   db: Queryable,
   ctx: Ctx,
-  m: { branchId: string; productId: string; batchId: string; type: MovementType; quantity: number; reference?: string; note?: string },
+  m: {
+    branchId: string;
+    productId: string;
+    batchId: string;
+    type: MovementType;
+    quantity: number;
+    reference?: string;
+    note?: string;
+    patientId?: string | null;
+  },
 ) {
   await db.query(
-    `INSERT INTO movements (id, pharmacy_id, branch_id, product_id, batch_id, type, quantity, user_id, reference, note)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [newId(), ctx.pharmacy.id, m.branchId, m.productId, m.batchId, m.type, m.quantity, ctx.user.id, m.reference ?? "", m.note ?? ""],
+    `INSERT INTO movements (id, pharmacy_id, branch_id, product_id, batch_id, type, quantity, user_id, reference, note, patient_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    [newId(), ctx.pharmacy.id, m.branchId, m.productId, m.batchId, m.type, m.quantity, ctx.user.id, m.reference ?? "", m.note ?? "", m.patientId ?? null],
   );
 }
 
@@ -280,7 +290,7 @@ export async function receiveStock(ctx: Ctx, input: ReceiveInput, db?: Queryable
 
   const run = async (tx: Queryable) => {
     const product = await getProductWith(tx, ctx, input.productId);
-    if (product.archived) throw new UserError("This product is archived. Restore it before receiving stock.");
+    if (product.archived) throw new UserError("This medication was removed. Restore it on its page before receiving stock.");
     await checkSupplier(tx, ctx, input.supplierId);
     const batchId = await findOrCreateBatch(tx, ctx, product.id, {
       lot,
@@ -315,6 +325,8 @@ export interface StockOutInput {
   reference: string;
   note: string;
   targetBranchId?: string;
+  // Optional: the patient a dispense was for.
+  patientId?: string | null;
 }
 
 export async function stockOut(ctx: Ctx, input: StockOutInput): Promise<void> {
@@ -383,6 +395,7 @@ export async function stockOut(ctx: Ctx, input: StockOutInput): Promise<void> {
       return;
     }
 
+    const patientId = input.type === "dispensed" ? await checkPatient(tx, ctx, input.patientId) : null;
     await insertMovement(tx, ctx, {
       branchId: product.branch_id,
       productId: product.id,
@@ -391,6 +404,7 @@ export async function stockOut(ctx: Ctx, input: StockOutInput): Promise<void> {
       quantity: -input.quantity,
       reference: input.reference.trim(),
       note,
+      patientId,
     });
   });
 }
@@ -518,6 +532,8 @@ export interface MovementRow {
   created_at: Date;
   type: string;
   quantity: number;
+  // Units of this product in stock (all batches) right after this movement.
+  balance_after: number;
   reference: string;
   note: string;
   user_name: string;
@@ -551,10 +567,11 @@ export async function movementLog(
   if (opts.to && isISODate(opts.to)) add(`(m.created_at AT TIME ZONE '${tz.replace(/'/g, "")}')::date <= ?::date`, opts.to);
   params.push(opts.limit ?? 1000);
   return query<MovementRow>(
-    `SELECT m.id, m.created_at, m.type, m.quantity, m.reference, m.note,
+    `SELECT m.id, m.created_at, m.type, m.quantity, m.balance_after::int AS balance_after, m.reference, m.note,
             u.name AS user_name, p.id AS product_id, p.name AS product_name, p.strength, p.form, p.ndc, p.dea_schedule,
             b.lot_number, b.expiry_date, br.name AS branch_name
-       FROM movements m
+       FROM (SELECT *, SUM(quantity) OVER (PARTITION BY product_id ORDER BY created_at, id ROWS UNBOUNDED PRECEDING) AS balance_after
+               FROM movements WHERE pharmacy_id = $1) m
        JOIN users u ON u.id = m.user_id
        JOIN products p ON p.id = m.product_id
        JOIN batches b ON b.id = m.batch_id

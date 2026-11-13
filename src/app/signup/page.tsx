@@ -33,7 +33,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
           </label>
           <label className="inline">
             <input type="checkbox" name="agree" value="yes" required />
-            <span>I understand SortMed is for stock only, and I won&apos;t enter patient names or details.</span>
+            <span>I understand patient details are protected health information, and I&apos;ll only add patients my pharmacy needs to keep a record of.</span>
           </label>
           <button type="submit">Create account</button>
         </ActionForm>

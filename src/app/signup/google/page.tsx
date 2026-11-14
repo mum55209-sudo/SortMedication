@@ -29,7 +29,7 @@ export default async function GoogleSignupPage() {
           <label>Your name<input name="ownerName" autoComplete="name" defaultValue={pending.name} required /></label>
           <label className="inline">
             <input type="checkbox" name="agree" value="yes" required />
-            <span>I understand SortMed is for stock only, and I won&apos;t enter patient names or details.</span>
+            <span>I&apos;ll keep patient information private and only give patient access to staff who need it.</span>
           </label>
           <button type="submit">Create account</button>
         </ActionForm>

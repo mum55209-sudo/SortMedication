@@ -34,7 +34,8 @@ import {
   stockOut,
   updateProduct,
 } from "@/lib/stock";
-import { parsePatientInput, savePatient } from "@/lib/patients";
+import { parsePatientInput, savePatient, setPatientRemoved } from "@/lib/patients";
+import { cancelPrescription, createPrescription, parsePrescriptionInput } from "@/lib/prescriptions";
 import { createShipment, updateShipmentStatus, type ShipmentStatus } from "@/lib/shipments";
 
 function text(fd: FormData, name: string): string {
@@ -60,7 +61,7 @@ function requireOwner(role: string) {
 
 export async function signupAction(fd: FormData): Promise<ActionResult> {
   try {
-    if (text(fd, "agree") !== "yes") throw new UserError("Please confirm you won't store patient details.");
+    if (text(fd, "agree") !== "yes") throw new UserError("Please confirm you'll keep patient information private.");
     const { userId } = await createPharmacyAccount({
       pharmacyName: text(fd, "pharmacyName"),
       ownerName: text(fd, "ownerName"),
@@ -77,7 +78,7 @@ export async function signupAction(fd: FormData): Promise<ActionResult> {
 // The last step of "Sign up with Google".
 export async function googleSignupAction(fd: FormData): Promise<ActionResult> {
   try {
-    if (text(fd, "agree") !== "yes") throw new UserError("Please confirm you won't store patient details.");
+    if (text(fd, "agree") !== "yes") throw new UserError("Please confirm you'll keep patient information private.");
     const jar = await cookies();
     const token = jar.get(GOOGLE_SIGNUP_COOKIE)?.value;
     if (!token) throw new UserError("Your Google sign-up timed out. Please press \"Sign up with Google\" again.");
@@ -199,6 +200,7 @@ export async function stockOutAction(fd: FormData): Promise<ActionResult> {
       note: text(fd, "note"),
       targetBranchId: text(fd, "targetBranchId") || undefined,
       patientId: text(fd, "patientId") || null,
+      prescriptionId: text(fd, "prescriptionId") || null,
     });
   } catch (err) {
     return toActionError(err);
@@ -321,6 +323,45 @@ export async function savePatientAction(fd: FormData): Promise<ActionResult> {
   revalidatePath("/patients");
   if (existing) return { message: "Patient details saved." };
   redirect(`/patients/${id}`);
+}
+
+export async function removePatientAction(fd: FormData): Promise<ActionResult> {
+  const ctx = await requireContext();
+  const id = text(fd, "id");
+  const removed = text(fd, "removed") === "true";
+  try {
+    await setPatientRemoved(ctx, id, removed);
+  } catch (err) {
+    return toActionError(err);
+  }
+  revalidatePath("/patients");
+  revalidatePath(`/patients/${id}`);
+  revalidatePath("/prescriptions");
+}
+
+// ---------- Prescriptions ----------
+
+export async function createPrescriptionAction(fd: FormData): Promise<ActionResult> {
+  const ctx = await requireContext();
+  try {
+    await createPrescription(ctx, parsePrescriptionInput(fields(fd)));
+  } catch (err) {
+    return toActionError(err);
+  }
+  revalidatePath(`/patients/${text(fd, "patientId")}`);
+  revalidatePath("/prescriptions");
+  return { message: "Prescription added." };
+}
+
+export async function cancelPrescriptionAction(fd: FormData): Promise<ActionResult> {
+  const ctx = await requireContext();
+  try {
+    await cancelPrescription(ctx, text(fd, "id"), text(fd, "reason"));
+  } catch (err) {
+    return toActionError(err);
+  }
+  revalidatePath("/prescriptions");
+  revalidatePath("/patients", "layout");
 }
 
 // ---------- Shipments ----------

@@ -225,6 +225,37 @@ SELECT m.pharmacy_id, m.branch_id, m.product_id, p.name, p.strength, p.form, m.c
   FROM movements m
   JOIN products p ON p.id = m.product_id;
 `,
+  // 6: Prescriptions, and removing patients. A removed patient is hidden but
+  // kept, because pharmacies must keep dispensing records. A prescription is
+  // for one patient and one medication; each dispense against it is a fill,
+  // and it allows 1 + refills_allowed fills.
+  `
+ALTER TABLE patients ADD COLUMN removed BOOLEAN NOT NULL DEFAULT false;
+
+CREATE TABLE prescriptions (
+  id TEXT PRIMARY KEY,
+  pharmacy_id TEXT NOT NULL REFERENCES pharmacies(id),
+  patient_id TEXT NOT NULL REFERENCES patients(id),
+  product_id TEXT NOT NULL REFERENCES products(id),
+  rx_number TEXT NOT NULL,
+  prescriber_name TEXT NOT NULL,
+  prescriber_phone TEXT NOT NULL DEFAULT '',
+  directions TEXT NOT NULL DEFAULT '',
+  quantity INTEGER NOT NULL CHECK (quantity > 0),
+  refills_allowed INTEGER NOT NULL DEFAULT 0 CHECK (refills_allowed >= 0),
+  date_written DATE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'cancelled')),
+  cancel_reason TEXT NOT NULL DEFAULT '',
+  created_by TEXT REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (pharmacy_id, rx_number)
+);
+CREATE INDEX prescriptions_patient_idx ON prescriptions (patient_id);
+
+ALTER TABLE movements ADD COLUMN prescription_id TEXT REFERENCES prescriptions(id);
+CREATE INDEX movements_prescription_idx ON movements (prescription_id);
+`,
 ];
 
 // The whole database as one SQL script, for pasting into Supabase's SQL
@@ -234,14 +265,28 @@ SELECT m.pharmacy_id, m.branch_id, m.product_id, p.name, p.strength, p.form, m.c
 export function fullSchemaSql(): string {
   const parts = [
     "-- SortMed database. Paste all of this into Supabase's SQL Editor and click Run.",
-    "-- Made from src/lib/schema.ts; don't edit by hand. Safe to run only on an empty database.",
+    "-- Made from src/lib/schema.ts; don't edit by hand.",
+    "-- Safe to run again on a database that already has some of it: steps already done are skipped.",
     "",
     "BEGIN;",
     "",
     "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now());",
   ];
   MIGRATIONS.forEach((sql, index) => {
-    parts.push("", `-- Step ${index + 1}`, sql.trim(), `INSERT INTO schema_migrations (version) VALUES (${index + 1});`);
+    const version = index + 1;
+    parts.push(
+      "",
+      `-- Step ${version}`,
+      "DO $do$",
+      "BEGIN",
+      `  IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = ${version}) THEN`,
+      "    EXECUTE $step$",
+      sql.trim(),
+      "    $step$;",
+      `    INSERT INTO schema_migrations (version) VALUES (${version});`,
+      "  END IF;",
+      "END $do$;",
+    );
   });
   parts.push(
     "",

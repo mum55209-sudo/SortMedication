@@ -6,10 +6,10 @@ import { formatDate } from "@/components/ui";
 import { requirePage } from "@/lib/session";
 import { listPatients, patientName } from "@/lib/patients";
 
-export default async function PatientsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function PatientsPage({ searchParams }: { searchParams: Promise<{ q?: string; removed?: string }> }) {
   const ctx = await requirePage("patients");
-  const { q } = await searchParams;
-  const patients = await listPatients(ctx, q);
+  const { q, removed } = await searchParams;
+  const patients = await listPatients(ctx, q, { includeRemoved: removed === "1" });
   return (
     <>
       <div className="page-head">
@@ -25,6 +25,9 @@ export default async function PatientsPage({ searchParams }: { searchParams: Pro
             Find a patient
             <input name="q" defaultValue={q} placeholder="Name, phone or date of birth (YYYY-MM-DD)" />
           </label>
+          <label className="inline">
+            <input type="checkbox" name="removed" value="1" defaultChecked={removed === "1"} /> Include removed patients
+          </label>
           <button type="submit">Find</button>
         </form>
         {patients.length === 0 ? (
@@ -36,7 +39,7 @@ export default async function PatientsPage({ searchParams }: { searchParams: Pro
               <tbody>
                 {patients.map((p) => (
                   <tr key={p.id}>
-                    <td><Link href={`/patients/${p.id}`}>{patientName(p)}</Link></td>
+                    <td><Link href={`/patients/${p.id}`}>{patientName(p)}</Link>{p.removed && <span className="tag plain">Removed</span>}</td>
                     <td className="nowrap">{formatDate(p.date_of_birth)}</td>
                     <td>{p.phone}</td>
                     <td>{p.allergies ? <span className="tag low">{p.allergies}</span> : <span className="muted">None recorded</span>}</td>

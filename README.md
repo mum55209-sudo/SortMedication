@@ -47,7 +47,14 @@ trail. It stores no patient details.
   allergies, insurance) and what has been dispensed to each patient. Start a
   dispense from the patient's page and the patient is saved with it. Hidden
   from read-only staff. See "Patient information" below before using it with
-  real patients.
+  real patients. **Remove patient** hides a patient and cancels their active
+  prescriptions, but keeps their records; **Restore patient** brings them back.
+- **Prescriptions**: add one from the patient's page (Rx number, medication,
+  quantity, refills, prescriber, directions, date written). **Out (−) Fill**
+  dispenses it and counts the fill; when the fills run out it shows "No
+  refills left". **Cancel** (with a reason) stops it. Schedule II
+  prescriptions can't have refills. The Prescriptions page lists and searches
+  them all.
 - **In (+) and Out (−)**: stock coming in (Receive stock) is labelled "In
   (+)" and stock going out is labelled "Out (−)" across the app.
 - **Stock record with running count**: every movement in a medication's
@@ -121,7 +128,8 @@ itself the first time it starts.
 
 **Prefer to create the tables yourself?** Open **SQL Editor** in Supabase,
 paste in everything from [`docs/database.sql`](docs/database.sql) and click
-**Run**. Do this on a new, empty Supabase project. The app sees the tables are
+**Run**. It is safe to run again after an update: steps already in your
+database are skipped and only the new ones are added. The app sees the tables are
 there and won't make them again. (After changing `src/lib/schema.ts`, run
 `npm run db:sql` to update that file.)
 

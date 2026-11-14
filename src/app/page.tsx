@@ -22,7 +22,8 @@ export default async function Home() {
           <h1>Stock control for independent pharmacies</h1>
           <p>
             Track every product and every batch by lot number and expiry date. Get warned before stock runs low or
-            expires, and keep a complete record of every stock change for inspections and recalls.
+            expires, keep basic patient records and prescriptions, and keep a complete record of every stock change for
+            inspections and recalls.
           </p>
           <div className="actions" style={{ justifyContent: "center" }}>
             <Link className="button" href="/signup">Start your {TRIAL_DAYS}-day free trial</Link>
@@ -42,6 +43,17 @@ export default async function Home() {
           <div className="card">
             <h2>Full audit trail</h2>
             <p>Stock only changes through recorded movements: who, when, how many, which batch and why.</p>
+          </div>
+          <div className="card">
+            <h2>Patients and prescriptions</h2>
+            <p>
+              Store basic patient information: name, date of birth, contact details, allergies and insurance. Add their
+              prescriptions and the app counts refills as you dispense. Only staff you allow can see patient records.
+            </p>
+          </div>
+          <div className="card">
+            <h2>Shipments and warnings</h2>
+            <p>Log orders on their way and get told when one is late or has arrived.</p>
           </div>
           <div className="card">
             <h2>Your whole team</h2>

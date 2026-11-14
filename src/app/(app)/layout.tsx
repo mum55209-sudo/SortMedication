@@ -4,6 +4,7 @@ import { BranchPicker, Nav } from "@/components/Nav";
 import { can, ROLE_LABELS, trialDaysLeft } from "@/lib/domain";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { requireContext } from "@/lib/session";
+import { assistantConfigured } from "@/lib/assistant";
 import { savedTheme } from "@/lib/theme";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -18,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: "/shipments", label: "Shipments" },
     ...(can(role, "patients") ? [{ href: "/patients", label: "Patients" }, { href: "/prescriptions", label: "Prescriptions" }] : []),
     { href: "/reports", label: "Reports" },
-    { href: "/assistant", label: "Ask AI" },
+    ...(assistantConfigured() ? [{ href: "/assistant", label: "Ask AI" }] : []),
     { href: "/settings", label: "Settings" },
   ];
   const trialing = ctx.pharmacy.subscription_status === "trialing";

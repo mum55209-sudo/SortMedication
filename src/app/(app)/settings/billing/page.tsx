@@ -1,5 +1,3 @@
-import { startSubscriptionAction } from "@/app/actions";
-import { ActionForm } from "@/components/ActionForm";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { formatDate } from "@/components/ui";
 import { PRICE_PER_MONTH_USD, trialDaysLeft } from "@/lib/domain";
@@ -27,9 +25,10 @@ export default async function BillingPage() {
           <p className="error">Your free trial has ended. Your data is safe and you can still view and export it.</p>
         )}
         {p.subscription_status !== "active" && ctx.user.role === "owner" && (
-          <ActionForm action={startSubscriptionAction} className="actions">
-            <button type="submit">Start subscription</button>
-          </ActionForm>
+          <p>
+            Online payment is coming soon. To start your subscription now, contact us and we&apos;ll set it up for you. Your data
+            stays as it is.
+          </p>
         )}
         <p className="muted small">Larger pharmacy groups: contact us for custom pricing.</p>
       </div>

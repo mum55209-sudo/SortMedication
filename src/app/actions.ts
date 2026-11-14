@@ -61,7 +61,7 @@ function requireOwner(role: string) {
 
 export async function signupAction(fd: FormData): Promise<ActionResult> {
   try {
-    if (text(fd, "agree") !== "yes") throw new UserError("Please confirm you won't store patient details.");
+    if (text(fd, "agree") !== "yes") throw new UserError("Please confirm you'll keep patient information private.");
     const { userId } = await createPharmacyAccount({
       pharmacyName: text(fd, "pharmacyName"),
       ownerName: text(fd, "ownerName"),
@@ -78,7 +78,7 @@ export async function signupAction(fd: FormData): Promise<ActionResult> {
 // The last step of "Sign up with Google".
 export async function googleSignupAction(fd: FormData): Promise<ActionResult> {
   try {
-    if (text(fd, "agree") !== "yes") throw new UserError("Please confirm you won't store patient details.");
+    if (text(fd, "agree") !== "yes") throw new UserError("Please confirm you'll keep patient information private.");
     const jar = await cookies();
     const token = jar.get(GOOGLE_SIGNUP_COOKIE)?.value;
     if (!token) throw new UserError("Your Google sign-up timed out. Please press \"Sign up with Google\" again.");

@@ -4,6 +4,7 @@ import { signupAction } from "@/app/actions";
 import { ActionForm } from "@/components/ActionForm";
 import { GoogleButton } from "@/components/GoogleButton";
 import { PRICE_PER_MONTH_USD, TRIAL_DAYS } from "@/lib/domain";
+import { databaseConfigured } from "@/lib/db";
 import { googleProblemText } from "@/lib/google";
 import { getContext } from "@/lib/session";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
@@ -19,6 +20,12 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
       <div className="card">
         <h1>Start your free trial</h1>
         <p className="subtitle">{TRIAL_DAYS} days free, no card needed. Then ${PRICE_PER_MONTH_USD}/month per pharmacy.</p>
+        {!databaseConfigured() && (
+          <p className="warning" role="alert">
+            This site isn&apos;t connected to its database yet, so signing up and signing in won&apos;t work. The owner needs to add
+            DATABASE_URL in Vercel (Settings &gt; Environment Variables) and redeploy.
+          </p>
+        )}
         {googleProblem && <p className="error" role="alert">{googleProblem}</p>}
         <GoogleButton from="signup" label="Sign up with Google" />
         <p className="or">or sign up with your email</p>
@@ -33,7 +40,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
           </label>
           <label className="inline">
             <input type="checkbox" name="agree" value="yes" required />
-            <span>I understand patient details are protected health information, and I&apos;ll only add patients my pharmacy needs to keep a record of.</span>
+            <span>I understand SortMed can store patient information as well as stock, and that patient details are protected health information that must be kept private.</span>
           </label>
           <button type="submit">Create account</button>
         </ActionForm>

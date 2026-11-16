@@ -44,6 +44,10 @@ export default async function Home() {
             <p>Stock only changes through recorded movements: who, when, how many, which batch and why.</p>
           </div>
           <div className="card">
+            <h2>Patient records</h2>
+            <p>Keep basic patient details, allergies and insurance, and see what was dispensed to each patient.</p>
+          </div>
+          <div className="card">
             <h2>Your whole team</h2>
             <p>Owner, pharmacist, technician and read-only logins, with stock kept per branch.</p>
           </div>

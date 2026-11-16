@@ -29,7 +29,7 @@ export default async function GoogleSignupPage() {
           <label>Your name<input name="ownerName" autoComplete="name" defaultValue={pending.name} required /></label>
           <label className="inline">
             <input type="checkbox" name="agree" value="yes" required />
-            <span>I understand patient details are protected health information, and I&apos;ll only add patients my pharmacy needs to keep a record of.</span>
+            <span>I understand SortMed can store patient information as well as stock, and that patient details are protected health information that must be kept private.</span>
           </label>
           <button type="submit">Create account</button>
         </ActionForm>

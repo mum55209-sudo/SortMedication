@@ -5,6 +5,9 @@ import { askAssistant, cleanHistory } from "@/lib/assistant";
 import { UserError } from "@/lib/errors";
 import { getContext } from "@/lib/session";
 
+// Gemini can be slow when busy, and the app may try a few models.
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   const ctx = await getContext();
   if (!ctx) return Response.json({ error: "Please log in again." }, { status: 401 });

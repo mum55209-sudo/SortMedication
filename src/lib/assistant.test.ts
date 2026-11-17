@@ -26,6 +26,10 @@ beforeAll(async () => {
   await stockOut(ctx, { productId, batchId: batch.id, type: "dispensed", quantity: 10, reference: "Rx 99", note: "", patientId });
 });
 
+beforeAll(() => {
+  process.env.GEMINI_RETRY_DELAY_MS = "1";
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.GEMINI_API_KEY;
@@ -96,7 +100,7 @@ describe("askAssistant", () => {
   it("explains a problem on Google's side", async () => {
     process.env.GEMINI_API_KEY = "test-key";
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: { message: "The model is overloaded." } }, { status: 503 })));
-    await expect(askAssistant(ctx, "What's low?")).rejects.toThrow(/Google's side.*overloaded/);
+    await expect(askAssistant(ctx, "What's low?")).rejects.toThrow(/busy right now.*overloaded/);
   });
 
   it("retries with ?key= when Google won't take an AQ. key in the header", async () => {
@@ -105,6 +109,30 @@ describe("askAssistant", () => {
       url.includes("?key=AQ.test-key")
         ? Response.json({ candidates: [{ content: { parts: [{ text: "OK" }] } }] })
         : Response.json({ error: { code: 401, message: "ACCESS_TOKEN_TYPE_UNSUPPORTED" } }, { status: 401 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await askAssistant(ctx, "What's low?")).toBe("OK");
+  });
+
+  it("retries a busy model, then switches to another model", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    const fetchMock = vi.fn(async (url: string) =>
+      url.includes("gemini-flash-latest")
+        ? Response.json({ error: { code: 503, message: "This model is currently experiencing high demand." } }, { status: 503 })
+        : Response.json({ candidates: [{ content: { parts: [{ text: "From the backup model" }] } }] }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await askAssistant(ctx, "What's low?")).toBe("From the backup model");
+    // Two tries on the busy model, then one on the next.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("moves to another model when one model's free limit is used up", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    const fetchMock = vi.fn(async (url: string) =>
+      url.includes("gemini-flash-latest")
+        ? Response.json({ error: { code: 429, message: "Quota exceeded" } }, { status: 429 })
+        : Response.json({ candidates: [{ content: { parts: [{ text: "OK" }] } }] }),
     );
     vi.stubGlobal("fetch", fetchMock);
     expect(await askAssistant(ctx, "What's low?")).toBe("OK");

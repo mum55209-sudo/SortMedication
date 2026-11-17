@@ -22,7 +22,9 @@ import { expiryReport, listInventory } from "./stock";
 
 // The address can be changed for automated tests that use a pretend Gemini.
 const API_BASE = process.env.GEMINI_API_BASE || "https://generativelanguage.googleapis.com/v1beta";
-const DEFAULT_MODEL = "gemini-2.5-flash";
+// Tried in order. "gemini-flash-latest" always points at Google's current
+// Flash model, so it keeps working when older names are retired.
+const FALLBACK_MODELS = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"];
 
 export const MAX_QUESTION_LENGTH = 1000;
 const MAX_HISTORY = 10;
@@ -104,37 +106,100 @@ export async function askAssistant(ctx: Ctx, question: string, history: ChatTurn
   if (!key) throw new UserError("The AI assistant isn't switched on yet. It needs a Gemini key first (see \"AI assistant\" in the README).");
 
   const summary = await inventorySummary(ctx);
-  const model = (process.env.GEMINI_MODEL || DEFAULT_MODEL).replace(/[^a-zA-Z0-9.\-]/g, "");
   const contents = [
     ...history.map((t) => ({ role: t.role === "assistant" ? "model" : "user", parts: [{ text: t.text }] })),
     { role: "user", parts: [{ text: q }] },
   ];
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: `${INSTRUCTIONS}\n\nINVENTORY DATA\n${summary}` }] },
+    contents,
+    generationConfig: { temperature: 0.2, maxOutputTokens: 2048 },
+  });
 
-  let res: Response;
-  try {
-    res = await fetch(`${API_BASE}/models/${model}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: `${INSTRUCTIONS}\n\nINVENTORY DATA\n${summary}` }] },
-        contents,
-        generationConfig: { temperature: 0.2, maxOutputTokens: 1024 },
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
-  } catch {
-    throw new UserError("Couldn't reach Gemini. Please try again in a moment.");
+  // Google retires model names from time to time. If the chosen one is gone
+  // (404), try the next one so the assistant keeps working.
+  const models = [...new Set([process.env.GEMINI_MODEL, ...FALLBACK_MODELS].filter(Boolean) as string[])]
+    .map((m) => m.replace(/^models\//, "").replace(/[^a-zA-Z0-9.\-]/g, ""));
+
+  let res: Response | undefined;
+  let detail = "";
+  for (const model of models) {
+    try {
+      res = await fetch(`${API_BASE}/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body,
+        signal: AbortSignal.timeout(45_000),
+      });
+    } catch {
+      throw new UserError("Couldn't reach Gemini (no answer within 45 seconds). Please try again in a moment.");
+    }
+    // Newer AI Studio keys start with "AQ." instead of "AIza". Some setups
+    // reject them in the header (401), so try once more with ?key= instead.
+    if (res.status === 401) {
+      try {
+        res = await fetch(`${API_BASE}/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+          signal: AbortSignal.timeout(45_000),
+        });
+      } catch {
+        throw new UserError("Couldn't reach Gemini (no answer within 45 seconds). Please try again in a moment.");
+      }
+    }
+    if (res.ok) break;
+    detail = await geminiErrorText(res);
+    console.error(`Gemini error with model ${model}:`, res.status, detail);
+    if (res.status !== 404) break;
   }
+  if (!res) throw new UserError("Gemini had a problem answering. Please try again.");
+  if (!res.ok) throw new UserError(explainGeminiError(res.status, detail));
 
-  if (res.status === 429) throw new UserError("Gemini is busy or the free limit was reached. Please wait a minute and try again.");
-  if (res.status === 400 || res.status === 401 || res.status === 403) {
-    console.error("Gemini refused the request:", res.status, (await res.text()).slice(0, 500));
-    throw new UserError("Gemini didn't accept the request. Check that GEMINI_API_KEY is correct.");
+  const data = (await res.json()) as {
+    candidates?: { finishReason?: string; content?: { parts?: { text?: string; thought?: boolean }[] } }[];
+    promptFeedback?: { blockReason?: string };
+  };
+  if (data.promptFeedback?.blockReason) {
+    throw new UserError(`Gemini refused this question (${data.promptFeedback.blockReason}). Try asking in a different way.`);
   }
-  if (!res.ok) throw new UserError("Gemini had a problem answering. Please try again.");
-
-  const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-  const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("").trim();
-  if (!text) throw new UserError("Gemini didn't give an answer. Try asking in a different way.");
+  const candidate = data.candidates?.[0];
+  const text = candidate?.content?.parts?.filter((p) => !p.thought).map((p) => p.text ?? "").join("").trim();
+  if (!text) {
+    const why = candidate?.finishReason ? ` (reason: ${candidate.finishReason})` : "";
+    throw new UserError(`Gemini didn't give an answer${why}. Try asking in a different way.`);
+  }
   return text;
+}
+
+// Google's own explanation, e.g. "API key not valid. Please pass a valid API key."
+async function geminiErrorText(res: Response): Promise<string> {
+  const raw = await res.text().catch(() => "");
+  try {
+    const msg = (JSON.parse(raw) as { error?: { message?: string } }).error?.message;
+    if (msg) return msg.slice(0, 300);
+  } catch {
+    // not JSON
+  }
+  return raw.slice(0, 300);
+}
+
+// A plain reason for each kind of failure, plus Google's own words.
+export function explainGeminiError(status: number, detail: string): string {
+  const said = detail ? ` Google said: "${detail}"` : "";
+  if (/api key not valid|API_KEY_INVALID|api key expired/i.test(detail)) {
+    return `Your Gemini key isn't valid. Copy it again from aistudio.google.com, update GEMINI_API_KEY in Vercel and redeploy.${said}`;
+  }
+  if (status === 429) return `The Gemini free limit was reached or too many questions came at once. Wait a minute and try again.${said}`;
+  if (status === 403) {
+    return `Your Gemini key isn't allowed to use Gemini. Make a new key at aistudio.google.com (Get API key), update GEMINI_API_KEY in Vercel and redeploy.${said}`;
+  }
+  if (status === 400 && /location|region|country/i.test(detail)) return `Gemini isn't available from where the website runs.${said}`;
+  if (status === 400) return `Gemini didn't accept the request.${said}`;
+  if (status === 401) {
+    return `Your Gemini key wasn't accepted. Check GEMINI_API_KEY in Vercel has the whole key (keys from AI Studio start with "AQ." or "AIza"), with no spaces.${said}`;
+  }
+  if (status === 404) return `None of the Gemini models the app tried are available to your key. Set GEMINI_MODEL in Vercel to a model listed in aistudio.google.com.${said}`;
+  if (status >= 500) return `Gemini is having trouble right now (Google's side). Please try again in a few minutes.${said}`;
+  return `Gemini had a problem answering (error ${status}).${said}`;
 }

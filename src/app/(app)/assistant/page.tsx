@@ -10,7 +10,7 @@ export default async function AssistantPage() {
         <div>
           <h1>Ask AI</h1>
           <p className="subtitle">
-            Ask questions about {ctx.branch.name}&apos;s stock, like what&apos;s running low or what expires soon. Answers come from
+            Ask questions about {ctx.branch.name}&apos;s stock, like what&apos;s running low or what expires soon, or attach a photo of a medicine pack or a delivery slip. Answers come from
             Google Gemini, which only sees inventory, never patient details. Always double-check before acting.
           </p>
         </div>

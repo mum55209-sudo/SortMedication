@@ -279,6 +279,11 @@ h1 + .button.google { margin-top: 16px; }
 /* Where the answer came from, under each answer. */
 .chat-sources { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 8px; font-size: 0.9rem; }
 .chat-sources ul { margin: 0; padding-left: 18px; }
+/* Photo / PDF buttons under the question box. */
+.chat-upload { flex-basis: 100%; }
+.chat-upload p { margin: 6px 0 0; }
+.chat-file { align-self: center; border: 1px solid var(--border); padding: 4px 8px; font-size: 0.9rem; overflow-wrap: anywhere; }
+.chat-attachment { font-size: 0.85rem; margin-bottom: 4px; }
 .chat-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .chat-form .grow { flex: 1; min-width: 220px; }
 .chat-examples p { margin: 0 0 8px; }

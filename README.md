@@ -265,7 +265,18 @@ the drug reference), gives each one an ID like `[P1]`, and asks Gemini to
 answer **only** from those records. If the answer isn't in them, Gemini says
 "I couldn't find this" instead of guessing. Under each answer, the page lists
 the records it used, each linking to that record. The code is in
-`src/lib/grounding.ts`. The key stays on the server, so it never reaches
+`src/lib/grounding.ts`.
+
+**Photos and PDFs:** staff can tap **Take photo** (opens the camera on a
+phone) or **Upload photo or PDF** instead of typing, for example a medicine
+pack, a delivery slip or a supplier invoice. Files must be JPEG, PNG, WEBP,
+HEIC or PDF and under 4 MB (Vercel won't accept bigger uploads; big phone
+photos are shrunk in the browser first). The server sends the file to Gemini
+inside the request to read it, then looks up the matching records and answers
+as usual. Files are never saved: not in the database, not on disk, and not in
+Google's Files API. Blurry photos, files that aren't a pharmacy document, and
+anything that shows patient details are turned away with a friendly message.
+The code is in `src/lib/upload.ts`. The key stays on the server, so it never reaches
 anyone's browser.
 
 **Privacy:** the assistant never sends patient details (names, birth dates,

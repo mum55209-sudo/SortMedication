@@ -4,6 +4,7 @@ import { can } from "@/lib/domain";
 import { requireContext } from "@/lib/session";
 import { findByCode, listInventory } from "@/lib/stock";
 import { Flags, formatDate, Qty, rowClass } from "@/components/ui";
+import { UsedFor } from "@/components/DrugInfoCard";
 
 type Search = { q?: string; sort?: string; filter?: string; archived?: string; welcome?: string };
 
@@ -91,6 +92,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
                     <td>
                       <Link href={`/products/${r.id}`}><strong>{r.name}</strong></Link> {r.strength} {r.form}
                       {r.archived && <span className="tag plain">Removed</span>}
+                      <UsedFor name={r.name} />
                     </td>
                     <td className="nowrap">{r.ndc}</td>
                     <td className="num nowrap"><Qty units={r.total} packSize={r.pack_size} /></td>

@@ -99,6 +99,17 @@ describe("askAssistant", () => {
     await expect(askAssistant(ctx, "What's low?")).rejects.toThrow(/Google's side.*overloaded/);
   });
 
+  it("retries with ?key= when Google won't take an AQ. key in the header", async () => {
+    process.env.GEMINI_API_KEY = "AQ.test-key";
+    const fetchMock = vi.fn(async (url: string) =>
+      url.includes("?key=AQ.test-key")
+        ? Response.json({ candidates: [{ content: { parts: [{ text: "OK" }] } }] })
+        : Response.json({ error: { code: 401, message: "ACCESS_TOKEN_TYPE_UNSUPPORTED" } }, { status: 401 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await askAssistant(ctx, "What's low?")).toBe("OK");
+  });
+
   it("refuses empty or very long questions", async () => {
     process.env.GEMINI_API_KEY = "test-key";
     await expect(askAssistant(ctx, "   ")).rejects.toThrow("type a question");

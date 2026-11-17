@@ -134,6 +134,20 @@ export async function askAssistant(ctx: Ctx, question: string, history: ChatTurn
     } catch {
       throw new UserError("Couldn't reach Gemini (no answer within 45 seconds). Please try again in a moment.");
     }
+    // Newer AI Studio keys start with "AQ." instead of "AIza". Some setups
+    // reject them in the header (401), so try once more with ?key= instead.
+    if (res.status === 401) {
+      try {
+        res = await fetch(`${API_BASE}/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+          signal: AbortSignal.timeout(45_000),
+        });
+      } catch {
+        throw new UserError("Couldn't reach Gemini (no answer within 45 seconds). Please try again in a moment.");
+      }
+    }
     if (res.ok) break;
     detail = await geminiErrorText(res);
     console.error(`Gemini error with model ${model}:`, res.status, detail);
@@ -182,7 +196,9 @@ export function explainGeminiError(status: number, detail: string): string {
   }
   if (status === 400 && /location|region|country/i.test(detail)) return `Gemini isn't available from where the website runs.${said}`;
   if (status === 400) return `Gemini didn't accept the request.${said}`;
-  if (status === 401) return `Your Gemini key wasn't accepted. Check GEMINI_API_KEY in Vercel.${said}`;
+  if (status === 401) {
+    return `Your Gemini key wasn't accepted. Check GEMINI_API_KEY in Vercel has the whole key (keys from AI Studio start with "AQ." or "AIza"), with no spaces.${said}`;
+  }
   if (status === 404) return `None of the Gemini models the app tried are available to your key. Set GEMINI_MODEL in Vercel to a model listed in aistudio.google.com.${said}`;
   if (status >= 500) return `Gemini is having trouble right now (Google's side). Please try again in a few minutes.${said}`;
   return `Gemini had a problem answering (error ${status}).${said}`;

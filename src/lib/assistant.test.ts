@@ -70,7 +70,33 @@ describe("askAssistant", () => {
   it("gives a friendly message when Gemini says the limit is reached", async () => {
     process.env.GEMINI_API_KEY = "test-key";
     vi.stubGlobal("fetch", vi.fn(async () => new Response("slow down", { status: 429 })));
-    await expect(askAssistant(ctx, "What's low?")).rejects.toThrow("wait a minute");
+    await expect(askAssistant(ctx, "What's low?")).rejects.toThrow("Wait a minute");
+  });
+
+  it("tries the next model when Google says a model doesn't exist", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    const fetchMock = vi.fn(async (url: string) =>
+      url.includes("gemini-flash-latest")
+        ? Response.json({ error: { code: 404, message: "models/gemini-flash-latest is not found" } }, { status: 404 })
+        : Response.json({ candidates: [{ content: { parts: [{ text: "OK" }] } }] }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await askAssistant(ctx, "What's low?")).toBe("OK");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("says plainly when the key is wrong, with Google's own words", async () => {
+    process.env.GEMINI_API_KEY = "bad";
+    vi.stubGlobal("fetch", vi.fn(async () =>
+      Response.json({ error: { code: 400, message: "API key not valid. Please pass a valid API key.", status: "INVALID_ARGUMENT" } }, { status: 400 }),
+    ));
+    await expect(askAssistant(ctx, "What's low?")).rejects.toThrow(/key isn't valid.*API key not valid/);
+  });
+
+  it("explains a problem on Google's side", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: { message: "The model is overloaded." } }, { status: 503 })));
+    await expect(askAssistant(ctx, "What's low?")).rejects.toThrow(/Google's side.*overloaded/);
   });
 
   it("refuses empty or very long questions", async () => {

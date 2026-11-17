@@ -231,7 +231,13 @@ To switch it on:
    Add `GEMINI_API_KEY` with the key as its value, then redeploy.
    (On your own computer, put `GEMINI_API_KEY=...` in a file called
    `.env.local` and restart `npm run dev`.)
-4. Optional: `GEMINI_MODEL` picks the model (default `gemini-2.5-flash`).
+4. Optional: `GEMINI_MODEL` picks the model. If it's empty, the app uses
+   `gemini-flash-latest` (Google's current Flash model), falling back to
+   `gemini-2.5-flash` and `gemini-2.0-flash`.
+
+If Ask AI shows an error, it now says the reason and Google's own words
+(wrong key, free limit reached, model not found). In Vercel, open the
+project, then **Logs**, to see the same message for each question.
 
 How it works: the page sends the question to `/api/assistant` on our own
 server. The server adds a summary of this branch's stock (products, counts,

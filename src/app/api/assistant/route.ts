@@ -23,8 +23,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "Please type a question." }, { status: 400 });
   }
   try {
-    const answer = await askAssistant(ctx, typeof body.question === "string" ? body.question : "", cleanHistory(body.history));
-    return Response.json({ answer });
+    const { answer, sources } = await askAssistant(ctx, typeof body.question === "string" ? body.question : "", cleanHistory(body.history));
+    // Only what the page needs to show each source: its name and link.
+    return Response.json({ answer, sources: sources.map(({ id, label, href }) => ({ id, label, href })) });
   } catch (err) {
     if (err instanceof UserError) return Response.json({ error: err.message }, { status: 400 });
     console.error("AI assistant failed:", err);

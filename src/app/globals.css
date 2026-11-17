@@ -276,6 +276,9 @@ h1 + .button.google { margin-top: 16px; }
 .chat-msg.assistant { align-self: flex-start; background: var(--card); }
 .chat-who { font-size: 0.8rem; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
 .chat-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Where the answer came from, under each answer. */
+.chat-sources { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 8px; font-size: 0.9rem; }
+.chat-sources ul { margin: 0; padding-left: 18px; }
 .chat-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .chat-form .grow { flex: 1; min-width: 220px; }
 .chat-examples p { margin: 0 0 8px; }

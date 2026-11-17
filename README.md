@@ -47,7 +47,23 @@ trail. It stores no patient details.
   allergies, insurance) and what has been dispensed to each patient. Start a
   dispense from the patient's page and the patient is saved with it. Hidden
   from read-only staff. See "Patient information" below before using it with
-  real patients.
+  real patients. **Remove patient** hides a patient and cancels their active
+  prescriptions, but keeps their records; **Restore patient** brings them back.
+- **Prescriptions**: add one from the patient's page (Rx number, medication,
+  quantity, refills, prescriber, directions, date written). With **Fill it
+  now** ticked (the default) it is filled straight away. **Fill** takes the
+  prescribed quantity out of stock automatically, from the batches that
+  expire soonest (never expired ones), and records it against the patient.
+  If there isn't enough stock, nothing is taken and it says how much there
+  is; the **In stock** column warns "Not enough" ahead of time. **Choose
+  batch** fills from a batch you pick instead. When the fills run out it
+  shows "No refills left". **Patient moving to another pharmacy?** under a
+  prescription marks it "Transferred out" (with the new pharmacy's name) so
+  it can't be filled here any more. If its last fill was never picked up
+  (e.g. next month's refill was already prepared), tick **Put the last fill
+  back in stock** and those units go back into the batches they came from. **Cancel** (with a reason) stops it. Schedule II
+  prescriptions can't have refills. The Prescriptions page lists and searches
+  them all.
 - **In (+) and Out (−)**: stock coming in (Receive stock) is labelled "In
   (+)" and stock going out is labelled "Out (−)" across the app.
 - **Stock record with running count**: every movement in a medication's
@@ -121,7 +137,8 @@ itself the first time it starts.
 
 **Prefer to create the tables yourself?** Open **SQL Editor** in Supabase,
 paste in everything from [`docs/database.sql`](docs/database.sql) and click
-**Run**. Do this on a new, empty Supabase project. The app sees the tables are
+**Run**. It is safe to run again after an update: steps already in your
+database are skipped and only the new ones are added. The app sees the tables are
 there and won't make them again. (After changing `src/lib/schema.ts`, run
 `npm run db:sql` to update that file.)
 

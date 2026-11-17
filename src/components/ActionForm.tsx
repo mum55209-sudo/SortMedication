@@ -10,7 +10,7 @@ function isRedirect(err: unknown): boolean {
   return typeof digest === "string" && (digest.startsWith("NEXT_REDIRECT") || digest.startsWith("NEXT_NOT_FOUND") || digest.startsWith("NEXT_HTTP_ERROR_FALLBACK"));
 }
 
-type Action = (formData: FormData) => Promise<{ error?: string; message?: string } | void>;
+type Action = (formData: FormData) => Promise<{ error?: string; message?: string; warning?: string } | void>;
 
 export function ActionForm({
   action,
@@ -27,6 +27,7 @@ export function ActionForm({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   return (
@@ -49,17 +50,20 @@ export function ActionForm({
             // Anything else (server down, database not reachable...) would
             // otherwise make the button silently do nothing.
             setMessage(null);
+            setWarning(null);
             setError("Something went wrong on our side, so this didn't go through. Please try again in a moment.");
             return;
           }
           setError(result?.error ?? null);
           setMessage(result?.message ?? null);
+          setWarning(result?.warning ?? null);
           if (!result?.error && resetOnSuccess) form.reset();
         });
       }}
     >
       {error && <p className="error" role="alert">{error}</p>}
       {message && <p className="notice" role="status">{message}</p>}
+      {warning && <p className="warning" role="alert">{warning}</p>}
       <fieldset disabled={pending} className={className}>
         {children}
       </fieldset>

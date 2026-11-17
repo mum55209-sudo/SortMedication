@@ -5,7 +5,7 @@
 // staff), every pharmacy only ever sees its own patients, and each change is
 // written to the activity log.
 
-import { newId, one, query, type Queryable } from "./db";
+import { newId, one, query, transaction, type Queryable } from "./db";
 import type { Ctx } from "./accounts";
 import { logActivity } from "./accounts";
 import { can, isISODate, todayISO } from "./domain";
@@ -23,9 +23,10 @@ export interface Patient {
   insurance_provider: string;
   insurance_member_id: string;
   notes: string;
+  removed: boolean;
 }
 
-export type PatientInput = Omit<Patient, "id">;
+export type PatientInput = Omit<Patient, "id" | "removed">;
 
 function requireView(ctx: Ctx) {
   if (!can(ctx.user.role, "patients")) throw new UserError("Your role doesn't allow seeing patient records. Ask the pharmacy owner.");
@@ -67,12 +68,12 @@ const FIELDS = [
   "notes",
 ] as const;
 
-export async function listPatients(ctx: Ctx, q = ""): Promise<Patient[]> {
+export async function listPatients(ctx: Ctx, q = "", { includeRemoved = false } = {}): Promise<Patient[]> {
   requireView(ctx);
   const search = q.trim().toLowerCase();
   return query<Patient>(
     `SELECT * FROM patients
-      WHERE pharmacy_id = $1
+      WHERE pharmacy_id = $1 ${includeRemoved ? "" : "AND removed = false"}
         AND ($2 = '' OR lower(first_name || ' ' || last_name) LIKE '%' || $2 || '%'
              OR lower(last_name || ', ' || first_name) LIKE '%' || $2 || '%'
              OR replace(phone, '-', '') LIKE '%' || replace($2, '-', '') || '%'
@@ -118,9 +119,32 @@ export async function savePatient(ctx: Ctx, id: string | null, input: PatientInp
 export async function checkPatient(db: Queryable, ctx: Ctx, patientId: string | null | undefined): Promise<string | null> {
   if (!patientId) return null;
   requireView(ctx);
-  const rows = await db.query("SELECT 1 FROM patients WHERE id = $1 AND pharmacy_id = $2", [patientId, ctx.pharmacy.id]);
+  const rows = await db.query<{ removed: boolean }>("SELECT removed FROM patients WHERE id = $1 AND pharmacy_id = $2", [patientId, ctx.pharmacy.id]);
   if (rows.length === 0) throw new UserError("That patient wasn't found.");
+  if (rows[0].removed) throw new UserError("This patient was removed. Restore them on their page before dispensing.");
   return patientId;
+}
+
+// Removing hides a patient from the list and stops new dispenses and
+// prescriptions for them. Nothing is deleted: pharmacies must keep
+// dispensing records. Their active prescriptions are cancelled.
+export async function setPatientRemoved(ctx: Ctx, id: string, removed: boolean) {
+  requireCan(ctx, "patients");
+  await transaction(async (tx) => {
+    const rows = await tx.query(
+      "UPDATE patients SET removed = $1, updated_at = now() WHERE id = $2 AND pharmacy_id = $3 RETURNING id",
+      [removed, id, ctx.pharmacy.id],
+    );
+    if (rows.length === 0) throw new UserError("That patient wasn't found.");
+    if (removed) {
+      await tx.query(
+        `UPDATE prescriptions SET status = 'cancelled', cancel_reason = 'Patient removed', updated_at = now()
+          WHERE patient_id = $1 AND pharmacy_id = $2 AND status = 'active'`,
+        [id, ctx.pharmacy.id],
+      );
+    }
+    await logActivity(tx, ctx.pharmacy.id, ctx.user.id, removed ? "Patient removed" : "Patient restored", `Patient ${id.slice(0, 8)}`);
+  });
 }
 
 export interface DispenseRow {

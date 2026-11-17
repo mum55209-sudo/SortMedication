@@ -31,10 +31,14 @@ import {
   receiveStock,
   saveSupplier,
   setProductArchived,
+  fillPrescription,
+  transferPrescription,
   stockOut,
   updateProduct,
 } from "@/lib/stock";
-import { parsePatientInput, savePatient } from "@/lib/patients";
+import { parsePatientInput, savePatient, setPatientRemoved } from "@/lib/patients";
+import { cancelPrescription, createPrescription, parsePrescriptionInput } from "@/lib/prescriptions";
+import type { FillResult, TransferResult } from "@/lib/stock";
 import { createShipment, updateShipmentStatus, type ShipmentStatus } from "@/lib/shipments";
 
 function text(fd: FormData, name: string): string {
@@ -199,6 +203,7 @@ export async function stockOutAction(fd: FormData): Promise<ActionResult> {
       note: text(fd, "note"),
       targetBranchId: text(fd, "targetBranchId") || undefined,
       patientId: text(fd, "patientId") || null,
+      prescriptionId: text(fd, "prescriptionId") || null,
     });
   } catch (err) {
     return toActionError(err);
@@ -321,6 +326,99 @@ export async function savePatientAction(fd: FormData): Promise<ActionResult> {
   revalidatePath("/patients");
   if (existing) return { message: "Patient details saved." };
   redirect(`/patients/${id}`);
+}
+
+export async function removePatientAction(fd: FormData): Promise<ActionResult> {
+  const ctx = await requireContext();
+  const id = text(fd, "id");
+  const removed = text(fd, "removed") === "true";
+  try {
+    await setPatientRemoved(ctx, id, removed);
+  } catch (err) {
+    return toActionError(err);
+  }
+  revalidatePath("/patients");
+  revalidatePath(`/patients/${id}`);
+  revalidatePath("/prescriptions");
+}
+
+// ---------- Prescriptions ----------
+
+function filledMessage(r: FillResult): string {
+  const from = r.batches.map((b) => `${b.quantity} from batch ${b.lot}`).join(", ");
+  return `Rx ${r.rxNumber} filled: ${r.quantity} units taken out of stock (${from}). ${r.leftInStock} left in stock.`;
+}
+
+function revalidateStock(patientId: string) {
+  revalidatePath(`/patients/${patientId}`);
+  revalidatePath("/prescriptions");
+  revalidatePath("/inventory");
+  revalidatePath("/dashboard");
+  revalidatePath("/products", "layout");
+}
+
+// Adds a prescription. With "Fill it now" ticked, it is also filled straight
+// away, which takes the medication out of stock.
+export async function createPrescriptionAction(fd: FormData): Promise<ActionResult> {
+  const ctx = await requireContext();
+  const patientId = text(fd, "patientId");
+  let id: string;
+  try {
+    id = await createPrescription(ctx, parsePrescriptionInput(fields(fd)));
+  } catch (err) {
+    return toActionError(err);
+  }
+  revalidateStock(patientId);
+  if (text(fd, "fillNow") !== "yes") return { message: "Prescription added. Press Fill when you hand it to the patient." };
+  try {
+    return { message: `Prescription added. ${filledMessage(await fillPrescription(ctx, id))}` };
+  } catch (err) {
+    return { warning: `Prescription added, but not filled yet. ${toActionError(err).error}` };
+  }
+}
+
+// "Fill" on a prescription: takes the prescribed quantity out of stock,
+// soonest-expiring batches first.
+export async function fillPrescriptionAction(fd: FormData): Promise<ActionResult> {
+  const ctx = await requireContext();
+  let result: FillResult;
+  try {
+    result = await fillPrescription(ctx, text(fd, "id"));
+  } catch (err) {
+    return toActionError(err);
+  }
+  revalidateStock(text(fd, "patientId"));
+  return { message: filledMessage(result) };
+}
+
+// The patient moved to another pharmacy: stop the prescription here and,
+// if ticked, put its last (not picked up) fill back in stock.
+export async function transferPrescriptionAction(fd: FormData): Promise<ActionResult> {
+  const ctx = await requireContext();
+  let result: TransferResult;
+  try {
+    result = await transferPrescription(ctx, text(fd, "id"), {
+      toPharmacy: text(fd, "toPharmacy"),
+      putBackLastFill: text(fd, "putBack") === "yes",
+    });
+  } catch (err) {
+    return toActionError(err);
+  }
+  revalidateStock(text(fd, "patientId"));
+  return {
+    message: `Rx ${result.rxNumber} transferred out.${result.putBack ? ` ${result.putBack} units put back in stock.` : ""}`,
+  };
+}
+
+export async function cancelPrescriptionAction(fd: FormData): Promise<ActionResult> {
+  const ctx = await requireContext();
+  try {
+    await cancelPrescription(ctx, text(fd, "id"), text(fd, "reason"));
+  } catch (err) {
+    return toActionError(err);
+  }
+  revalidatePath("/prescriptions");
+  revalidatePath("/patients", "layout");
 }
 
 // ---------- Shipments ----------

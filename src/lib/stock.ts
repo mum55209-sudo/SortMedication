@@ -18,6 +18,7 @@ import {
   expiryStatus,
   isISODate,
   isValidNdc,
+  planFill,
   productFlags,
   suggestBatch,
   todayISO,
@@ -26,6 +27,7 @@ import {
 } from "./domain";
 import { UserError } from "./errors";
 import { checkPatient } from "./patients";
+import { checkFill } from "./prescriptions";
 
 export interface Product {
   id: string;
@@ -234,12 +236,15 @@ async function insertMovement(
     reference?: string;
     note?: string;
     patientId?: string | null;
+    prescriptionId?: string | null;
+    fillId?: string | null;
   },
 ) {
   await db.query(
-    `INSERT INTO movements (id, pharmacy_id, branch_id, product_id, batch_id, type, quantity, user_id, reference, note, patient_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-    [newId(), ctx.pharmacy.id, m.branchId, m.productId, m.batchId, m.type, m.quantity, ctx.user.id, m.reference ?? "", m.note ?? "", m.patientId ?? null],
+    `INSERT INTO movements (id, pharmacy_id, branch_id, product_id, batch_id, type, quantity, user_id, reference, note, patient_id, prescription_id, fill_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+    [newId(), ctx.pharmacy.id, m.branchId, m.productId, m.batchId, m.type, m.quantity, ctx.user.id, m.reference ?? "", m.note ?? "",
+     m.patientId ?? null, m.prescriptionId ?? null, m.fillId ?? null],
   );
 }
 
@@ -327,6 +332,8 @@ export interface StockOutInput {
   targetBranchId?: string;
   // Optional: the patient a dispense was for.
   patientId?: string | null;
+  // Optional: the prescription this dispense fills (sets the patient too).
+  prescriptionId?: string | null;
 }
 
 export async function stockOut(ctx: Ctx, input: StockOutInput): Promise<void> {
@@ -395,17 +402,167 @@ export async function stockOut(ctx: Ctx, input: StockOutInput): Promise<void> {
       return;
     }
 
-    const patientId = input.type === "dispensed" ? await checkPatient(tx, ctx, input.patientId) : null;
+    let patientId: string | null = null;
+    let prescriptionId: string | null = null;
+    let reference = input.reference.trim();
+    if (input.type === "dispensed" && input.prescriptionId) {
+      const fill = await checkFill(tx, ctx, input.prescriptionId, product.id);
+      prescriptionId = input.prescriptionId;
+      patientId = fill.patientId;
+      reference = reference || `Rx ${fill.rxNumber}`;
+    } else if (input.type === "dispensed") {
+      patientId = await checkPatient(tx, ctx, input.patientId);
+    }
     await insertMovement(tx, ctx, {
       branchId: product.branch_id,
       productId: product.id,
       batchId: batch.id,
       type: input.type,
       quantity: -input.quantity,
-      reference: input.reference.trim(),
+      reference,
       note,
       patientId,
+      prescriptionId,
     });
+  });
+}
+
+// ---------- Filling a prescription ----------
+
+export interface FillResult {
+  rxNumber: string;
+  quantity: number;
+  batches: { lot: string; quantity: number }[];
+  leftInStock: number;
+}
+
+// Fills a prescription in one step: takes the prescribed quantity out of
+// stock, from the batches that expire soonest (never expired ones), and
+// records it as a "Dispensed" movement for the patient. If there isn't
+// enough usable stock, nothing is taken and the message says how much there is.
+export async function fillPrescription(ctx: Ctx, prescriptionId: string, db?: Queryable): Promise<FillResult> {
+  requireCan(ctx, "stock.out");
+  requireCan(ctx, "patients");
+  const run = async (tx: Queryable): Promise<FillResult> => {
+    const productId = (
+      await tx.query<{ product_id: string }>("SELECT product_id FROM prescriptions WHERE id = $1 AND pharmacy_id = $2", [prescriptionId, ctx.pharmacy.id])
+    )[0]?.product_id;
+    if (!productId) throw new UserError("That prescription wasn't found.");
+    const product = await getProductWith(tx, ctx, productId);
+    if (product.archived) throw new UserError("This medication was removed. Restore it on its page before filling.");
+    const fill = await checkFill(tx, ctx, prescriptionId, product.id);
+    const quantity = (await tx.query<{ quantity: number }>("SELECT quantity FROM prescriptions WHERE id = $1", [prescriptionId]))[0].quantity;
+
+    // Lock this medication's batches so two people can't take the same stock at once.
+    await tx.query("SELECT id FROM batches WHERE product_id = $1 AND pharmacy_id = $2 FOR UPDATE", [product.id, ctx.pharmacy.id]);
+    const batches = await tx.query<{ id: string; lot_number: string; expiry_date: string; quantity: number }>(
+      `SELECT b.id, b.lot_number, b.expiry_date, COALESCE((SELECT SUM(m.quantity) FROM movements m WHERE m.batch_id = b.id), 0)::int AS quantity
+         FROM batches b WHERE b.product_id = $1 AND b.pharmacy_id = $2`,
+      [product.id, ctx.pharmacy.id],
+    );
+    const plan = planFill(batches, quantity, todayISO());
+    if (!plan.picks) {
+      const expiredNote = plan.expired > 0 ? ` (${plan.expired} more are expired and can't be used)` : "";
+      throw new UserError(
+        `Not enough ${productLabel(product)} in stock to fill Rx ${fill.rxNumber}: it needs ${quantity} units but only ${plan.usable} can be used${expiredNote}. ` +
+          "Receive more stock first, then fill it.",
+      );
+    }
+    const fillId = newId();
+    for (const pick of plan.picks) {
+      await insertMovement(tx, ctx, {
+        branchId: product.branch_id,
+        productId: product.id,
+        batchId: pick.batch.id,
+        type: "dispensed",
+        quantity: -pick.quantity,
+        reference: `Rx ${fill.rxNumber}`,
+        note: "",
+        patientId: fill.patientId,
+        prescriptionId,
+        fillId,
+      });
+    }
+    return {
+      rxNumber: fill.rxNumber,
+      quantity,
+      batches: plan.picks.map((p) => ({ lot: p.batch.lot_number, quantity: p.quantity })),
+      leftInStock: plan.usable + plan.expired - quantity,
+    };
+  };
+  return db ? run(db) : transaction(run);
+}
+
+// ---------- Transferring a prescription to another pharmacy ----------
+
+export interface TransferResult {
+  rxNumber: string;
+  putBack: number; // units put back in stock
+}
+
+// The patient is moving to another pharmacy: the prescription is marked
+// "Transferred out" so it can't be filled here any more. If its most recent
+// fill was never picked up (e.g. next month's refill was already prepared),
+// putBackLastFill adds those units back to the same batches they came from,
+// and that fill no longer counts.
+export async function transferPrescription(
+  ctx: Ctx,
+  prescriptionId: string,
+  input: { toPharmacy: string; putBackLastFill: boolean },
+): Promise<TransferResult> {
+  requireCan(ctx, "patients");
+  const toPharmacy = input.toPharmacy.trim();
+  if (!toPharmacy) throw new UserError("Please enter the pharmacy the patient is moving to.");
+  if (input.putBackLastFill) requireCan(ctx, "stock.out");
+  return transaction(async (tx) => {
+    const rx = (
+      await tx.query<{ rx_number: string; status: string }>(
+        "SELECT rx_number, status FROM prescriptions WHERE id = $1 AND pharmacy_id = $2 FOR UPDATE",
+        [prescriptionId, ctx.pharmacy.id],
+      )
+    )[0];
+    if (!rx) throw new UserError("That prescription wasn't found.");
+    if (rx.status !== "active") throw new UserError(`Rx ${rx.rx_number} is already ${rx.status}.`);
+
+    let putBack = 0;
+    if (input.putBackLastFill) {
+      // The latest fill that hasn't already been put back.
+      const last = await tx.query<{ batch_id: string; branch_id: string; product_id: string; patient_id: string | null; quantity: number; fill_key: string }>(
+        `SELECT m.batch_id, m.branch_id, m.product_id, m.patient_id, m.quantity, COALESCE(m.fill_id, m.id) AS fill_key
+           FROM movements m
+          WHERE m.prescription_id = $1 AND m.pharmacy_id = $2 AND m.type = 'dispensed'
+            AND COALESCE(m.fill_id, m.id) = (
+              SELECT COALESCE(d.fill_id, d.id) FROM movements d
+               WHERE d.prescription_id = $1 AND d.type = 'dispensed'
+                 AND NOT EXISTS (SELECT 1 FROM movements r WHERE r.type = 'returned_to_stock' AND r.fill_id = COALESCE(d.fill_id, d.id))
+               ORDER BY d.created_at DESC LIMIT 1)`,
+        [prescriptionId, ctx.pharmacy.id],
+      );
+      if (last.length === 0) throw new UserError(`Rx ${rx.rx_number} has no fill to put back. Untick "put back" and try again.`);
+      for (const m of last) {
+        await insertMovement(tx, ctx, {
+          branchId: m.branch_id,
+          productId: m.product_id,
+          batchId: m.batch_id,
+          type: "returned_to_stock",
+          quantity: -m.quantity,
+          reference: `Rx ${rx.rx_number}: put back in stock, not picked up`,
+          note: `Not picked up: patient moved to ${toPharmacy}`,
+          patientId: m.patient_id,
+          prescriptionId,
+          fillId: m.fill_key,
+        });
+        putBack += -m.quantity;
+      }
+    }
+
+    await tx.query(
+      `UPDATE prescriptions SET status = 'transferred', transferred_to = $1, updated_at = now() WHERE id = $2`,
+      [toPharmacy, prescriptionId],
+    );
+    await logActivity(tx, ctx.pharmacy.id, ctx.user.id, "Prescription transferred out",
+      `Rx ${rx.rx_number} to ${toPharmacy}${putBack ? `; ${putBack} units put back in stock` : ""}`);
+    return { rxNumber: rx.rx_number, putBack };
   });
 }
 

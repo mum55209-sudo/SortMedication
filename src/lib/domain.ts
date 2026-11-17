@@ -63,6 +63,8 @@ export const MOVEMENT_TYPES = {
   adjusted: { label: "Count adjustment", sign: 0, permission: "stock.adjust" },
   transfer_out: { label: "Moved to another branch", sign: -1, permission: "stock.adjust" },
   transfer_in: { label: "Moved from another branch", sign: 1, permission: "stock.adjust" },
+  // A prescription fill that was never picked up, put back on the shelf.
+  returned_to_stock: { label: "Put back in stock (not picked up)", sign: 1, permission: "stock.out" },
 } as const satisfies Record<string, { label: string; sign: -1 | 0 | 1; permission: Permission }>;
 export type MovementType = keyof typeof MOVEMENT_TYPES;
 
@@ -126,6 +128,32 @@ export function suggestBatch<T extends BatchLike>(batches: T[], todayIso: string
   return batches
     .filter((b) => b.quantity > 0 && daysBetween(todayIso, b.expiry_date) >= 0)
     .sort((a, b) => a.expiry_date.localeCompare(b.expiry_date))[0];
+}
+
+// Which batches to take a quantity from: the soonest-expiring ones first,
+// skipping expired stock (it must not be dispensed). Returns null "picks" when
+// there isn't enough usable stock, with how much there is.
+export function planFill<T extends BatchLike>(
+  batches: T[],
+  quantity: number,
+  todayIso: string,
+): { picks: { batch: T; quantity: number }[] | null; usable: number; expired: number } {
+  const inStock = batches.filter((b) => b.quantity > 0);
+  const usableBatches = inStock
+    .filter((b) => daysBetween(todayIso, b.expiry_date) >= 0)
+    .sort((a, b) => a.expiry_date.localeCompare(b.expiry_date));
+  const usable = usableBatches.reduce((sum, b) => sum + b.quantity, 0);
+  const expired = inStock.reduce((sum, b) => sum + b.quantity, 0) - usable;
+  if (usable < quantity) return { picks: null, usable, expired };
+  const picks: { batch: T; quantity: number }[] = [];
+  let left = quantity;
+  for (const batch of usableBatches) {
+    if (left === 0) break;
+    const take = Math.min(left, batch.quantity);
+    picks.push({ batch, quantity: take });
+    left -= take;
+  }
+  return { picks, usable, expired };
 }
 
 // ---------- Subscription ----------

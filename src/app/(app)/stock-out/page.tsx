@@ -8,21 +8,36 @@ import { can, expiryStatus, MOVEMENT_TYPES, STOCK_OUT_TYPES, suggestBatch, today
 import { requirePage } from "@/lib/session";
 import { getBatches, getProduct, productLabel } from "@/lib/stock";
 import { getPatient, patientName } from "@/lib/patients";
+import { getPrescription, prescriptionState } from "@/lib/prescriptions";
 
 export default async function StockOutPage({
   searchParams,
 }: {
-  searchParams: Promise<{ product?: string; q?: string; patient?: string }>;
+  searchParams: Promise<{ product?: string; q?: string; patient?: string; prescription?: string }>;
 }) {
   const ctx = await requirePage("stock.out");
-  const { product: productId, q, patient: patientId } = await searchParams;
-  const patient = patientId && can(ctx.user.role, "patients") ? await getPatient(ctx, patientId).catch(() => null) : null;
+  const { product: productId, q, patient: patientId, prescription: prescriptionId } = await searchParams;
+  const canSeePatients = can(ctx.user.role, "patients");
+  const patient = patientId && canSeePatients ? await getPatient(ctx, patientId).catch(() => null) : null;
+  const rx = prescriptionId && canSeePatients ? await getPrescription(ctx, prescriptionId).catch(() => null) : null;
+  const rxState = rx ? prescriptionState(rx) : null;
   const forPatient = patient && (
     <>
       <p className="notice">
         Dispensing to <Link href={`/patients/${patient.id}`}>{patientName(patient)}</Link> (born {formatDate(patient.date_of_birth)})
       </p>
       {patient.allergies && <p className="warning"><strong>Check allergies:</strong> {patient.allergies}</p>}
+      {rx && rxState === "active" && (
+        <p className="notice">
+          Filling <strong>Rx {rx.rx_number}</strong> from {rx.prescriber_name}: {rx.quantity} units
+          {rx.directions && <>, &ldquo;{rx.directions}&rdquo;</>}. This is fill {rx.fills_used + 1} of {1 + rx.refills_allowed}.
+        </p>
+      )}
+      {rx && rxState !== "active" && (
+        <p className="error">
+          Rx {rx.rx_number} {rxState === "cancelled" ? "was cancelled" : "has no refills left"}, so it can&apos;t be filled.
+        </p>
+      )}
     </>
   );
 
@@ -67,6 +82,7 @@ export default async function StockOutPage({
             <input type="hidden" name="packSize" value={product.pack_size} />
             <input type="hidden" name="deaSchedule" value={product.dea_schedule} />
             {patient && <input type="hidden" name="patientId" value={patient.id} />}
+            {rx && <input type="hidden" name="prescriptionId" value={rx.id} />}
             <fieldset className="group">
               <legend>Which batch?</legend>
               {batches.map((b) => {
@@ -87,13 +103,13 @@ export default async function StockOutPage({
             <div className="fields">
               <label>
                 What is happening?
-                <select name="type" defaultValue={types[0]} required>
+                <select name="type" defaultValue={rx && types.includes("dispensed") ? "dispensed" : types[0]} required>
                   {types.map((t) => <option key={t} value={t}>{MOVEMENT_TYPES[t].label}</option>)}
                 </select>
               </label>
               <label>
                 Quantity
-                <input name="quantity" type="number" min={0} step={1} required />
+                <input name="quantity" type="number" min={0} step={1} required defaultValue={rx?.quantity} />
                 <span className="hint">For a count adjustment, enter the number you actually counted in this batch.</span>
               </label>
               <label>
@@ -105,9 +121,13 @@ export default async function StockOutPage({
               </label>
               <label>
                 Prescription number or reference
-                <input name="reference" placeholder="Rx 44821" />
+                <input name="reference" placeholder="Rx 44821" defaultValue={rx ? `Rx ${rx.rx_number}` : undefined} />
                 <span className="hint">
-                  {patient ? "The patient is saved with this dispense." : "To link a patient, start from their page in Patients."}
+                  {rx
+                    ? "This dispense counts as a fill of the prescription."
+                    : patient
+                      ? "The patient is saved with this dispense."
+                      : "To link a patient, start from their page in Patients."}
                 </span>
               </label>
               {otherBranches.length > 0 && types.includes("transfer_out") && (

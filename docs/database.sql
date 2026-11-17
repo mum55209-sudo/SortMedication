@@ -1,11 +1,16 @@
 -- SortMed database. Paste all of this into Supabase's SQL Editor and click Run.
--- Made from src/lib/schema.ts; don't edit by hand. Safe to run only on an empty database.
+-- Made from src/lib/schema.ts; don't edit by hand.
+-- Safe to run again on a database that already has some of it: steps already done are skipped.
 
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now());
 
 -- Step 1
+DO $do$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 1) THEN
+    EXECUTE $step$
 CREATE TABLE pharmacies (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -119,9 +124,16 @@ CREATE TABLE activity_log (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX activity_log_pharmacy_time_idx ON activity_log (pharmacy_id, created_at);
-INSERT INTO schema_migrations (version) VALUES (1);
+    $step$;
+    INSERT INTO schema_migrations (version) VALUES (1);
+  END IF;
+END $do$;
 
 -- Step 2
+DO $do$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 2) THEN
+    EXECUTE $step$
 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
 ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE;
 
@@ -133,9 +145,16 @@ CREATE TABLE google_signups (
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-INSERT INTO schema_migrations (version) VALUES (2);
+    $step$;
+    INSERT INTO schema_migrations (version) VALUES (2);
+  END IF;
+END $do$;
 
 -- Step 3
+DO $do$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 3) THEN
+    EXECUTE $step$
 CREATE TABLE shipments (
   id TEXT PRIMARY KEY,
   pharmacy_id TEXT NOT NULL REFERENCES pharmacies(id),
@@ -181,9 +200,16 @@ SELECT s.pharmacy_id, s.branch_id, s.id AS shipment_id, s.reference, s.expected_
  WHERE s.status = 'delayed'
     OR (s.status = 'ordered' AND s.expected_date < CURRENT_DATE)
     OR (s.status = 'arrived' AND s.arrived_at > now() - INTERVAL '7 days');
-INSERT INTO schema_migrations (version) VALUES (3);
+    $step$;
+    INSERT INTO schema_migrations (version) VALUES (3);
+  END IF;
+END $do$;
 
 -- Step 4
+DO $do$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 4) THEN
+    EXECUTE $step$
 CREATE TABLE patients (
   id TEXT PRIMARY KEY,
   pharmacy_id TEXT NOT NULL REFERENCES pharmacies(id),
@@ -203,9 +229,16 @@ CREATE INDEX patients_name_idx ON patients (pharmacy_id, last_name, first_name);
 
 ALTER TABLE movements ADD COLUMN patient_id TEXT REFERENCES patients(id);
 CREATE INDEX movements_patient_idx ON movements (patient_id);
-INSERT INTO schema_migrations (version) VALUES (4);
+    $step$;
+    INSERT INTO schema_migrations (version) VALUES (4);
+  END IF;
+END $do$;
 
 -- Step 5
+DO $do$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 5) THEN
+    EXECUTE $step$
 CREATE VIEW stock_record WITH (security_invoker = true) AS
 SELECT m.pharmacy_id, m.branch_id, m.product_id, p.name, p.strength, p.form, m.created_at,
        CASE WHEN m.quantity > 0 THEN 'In (+)' ELSE 'Out (-)' END AS direction,
@@ -214,7 +247,45 @@ SELECT m.pharmacy_id, m.branch_id, m.product_id, p.name, p.strength, p.form, m.c
        m.reference, m.note
   FROM movements m
   JOIN products p ON p.id = m.product_id;
-INSERT INTO schema_migrations (version) VALUES (5);
+    $step$;
+    INSERT INTO schema_migrations (version) VALUES (5);
+  END IF;
+END $do$;
+
+-- Step 6
+DO $do$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 6) THEN
+    EXECUTE $step$
+ALTER TABLE patients ADD COLUMN removed BOOLEAN NOT NULL DEFAULT false;
+
+CREATE TABLE prescriptions (
+  id TEXT PRIMARY KEY,
+  pharmacy_id TEXT NOT NULL REFERENCES pharmacies(id),
+  patient_id TEXT NOT NULL REFERENCES patients(id),
+  product_id TEXT NOT NULL REFERENCES products(id),
+  rx_number TEXT NOT NULL,
+  prescriber_name TEXT NOT NULL,
+  prescriber_phone TEXT NOT NULL DEFAULT '',
+  directions TEXT NOT NULL DEFAULT '',
+  quantity INTEGER NOT NULL CHECK (quantity > 0),
+  refills_allowed INTEGER NOT NULL DEFAULT 0 CHECK (refills_allowed >= 0),
+  date_written DATE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'cancelled')),
+  cancel_reason TEXT NOT NULL DEFAULT '',
+  created_by TEXT REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (pharmacy_id, rx_number)
+);
+CREATE INDEX prescriptions_patient_idx ON prescriptions (patient_id);
+
+ALTER TABLE movements ADD COLUMN prescription_id TEXT REFERENCES prescriptions(id);
+CREATE INDEX movements_prescription_idx ON movements (prescription_id);
+    $step$;
+    INSERT INTO schema_migrations (version) VALUES (6);
+  END IF;
+END $do$;
 
 -- Hide every table from Supabase's public Data API (the app connects directly and isn't affected).
 DO $$

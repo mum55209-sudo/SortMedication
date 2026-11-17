@@ -26,6 +26,7 @@ import {
 } from "./domain";
 import { UserError } from "./errors";
 import { checkPatient } from "./patients";
+import { checkFill } from "./prescriptions";
 
 export interface Product {
   id: string;
@@ -234,12 +235,14 @@ async function insertMovement(
     reference?: string;
     note?: string;
     patientId?: string | null;
+    prescriptionId?: string | null;
   },
 ) {
   await db.query(
-    `INSERT INTO movements (id, pharmacy_id, branch_id, product_id, batch_id, type, quantity, user_id, reference, note, patient_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-    [newId(), ctx.pharmacy.id, m.branchId, m.productId, m.batchId, m.type, m.quantity, ctx.user.id, m.reference ?? "", m.note ?? "", m.patientId ?? null],
+    `INSERT INTO movements (id, pharmacy_id, branch_id, product_id, batch_id, type, quantity, user_id, reference, note, patient_id, prescription_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+    [newId(), ctx.pharmacy.id, m.branchId, m.productId, m.batchId, m.type, m.quantity, ctx.user.id, m.reference ?? "", m.note ?? "",
+     m.patientId ?? null, m.prescriptionId ?? null],
   );
 }
 
@@ -327,6 +330,8 @@ export interface StockOutInput {
   targetBranchId?: string;
   // Optional: the patient a dispense was for.
   patientId?: string | null;
+  // Optional: the prescription this dispense fills (sets the patient too).
+  prescriptionId?: string | null;
 }
 
 export async function stockOut(ctx: Ctx, input: StockOutInput): Promise<void> {
@@ -395,16 +400,27 @@ export async function stockOut(ctx: Ctx, input: StockOutInput): Promise<void> {
       return;
     }
 
-    const patientId = input.type === "dispensed" ? await checkPatient(tx, ctx, input.patientId) : null;
+    let patientId: string | null = null;
+    let prescriptionId: string | null = null;
+    let reference = input.reference.trim();
+    if (input.type === "dispensed" && input.prescriptionId) {
+      const fill = await checkFill(tx, ctx, input.prescriptionId, product.id);
+      prescriptionId = input.prescriptionId;
+      patientId = fill.patientId;
+      reference = reference || `Rx ${fill.rxNumber}`;
+    } else if (input.type === "dispensed") {
+      patientId = await checkPatient(tx, ctx, input.patientId);
+    }
     await insertMovement(tx, ctx, {
       branchId: product.branch_id,
       productId: product.id,
       batchId: batch.id,
       type: input.type,
       quantity: -input.quantity,
-      reference: input.reference.trim(),
+      reference,
       note,
       patientId,
+      prescriptionId,
     });
   });
 }

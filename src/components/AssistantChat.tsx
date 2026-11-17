@@ -1,11 +1,13 @@
 "use client";
 
 // The chat box on the "Ask AI" page. It sends each question to
-// /api/assistant on our own server, which asks Gemini.
+// /api/assistant on our own server, which asks Gemini. Under each answer it
+// lists the records the answer came from, each linking to that record.
 
 import { useRef, useState } from "react";
 
-type Turn = { role: "user" | "assistant"; text: string };
+type Source = { id: string; label: string; href: string };
+type Turn = { role: "user" | "assistant"; text: string; sources?: Source[] };
 
 const EXAMPLES = [
   "What's running low?",
@@ -33,15 +35,15 @@ export function AssistantChat() {
       const res = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q, history }),
+        body: JSON.stringify({ question: q, history: history.map(({ role, text }) => ({ role, text })) }),
       });
-      const data = (await res.json().catch(() => ({}))) as { answer?: string; error?: string };
+      const data = (await res.json().catch(() => ({}))) as { answer?: string; sources?: Source[]; error?: string };
       if (!res.ok || !data.answer) {
         setError(data.error ?? "Something went wrong. Please try again.");
         setTurns(history);
         setQuestion(q);
       } else {
-        setTurns([...history, { role: "user", text: q }, { role: "assistant", text: data.answer }]);
+        setTurns([...history, { role: "user", text: q }, { role: "assistant", text: data.answer, sources: data.sources ?? [] }]);
       }
     } catch {
       setError("Couldn't reach the server. Check your internet connection and try again.");
@@ -70,6 +72,19 @@ export function AssistantChat() {
             <div key={i} className={`chat-msg ${t.role}`}>
               <div className="chat-who">{t.role === "user" ? "You" : "Assistant"}</div>
               <div className="chat-text">{t.text}</div>
+              {t.role === "assistant" && t.sources && t.sources.length > 0 && (
+                <div className="chat-sources">
+                  <div className="chat-who">Sources</div>
+                  <ul>
+                    {t.sources.map((s) => (
+                      <li key={s.id}>
+                        <span className="muted">[{s.id}]</span>{" "}
+                        {s.href.startsWith("/") ? <a href={s.href}>{s.label}</a> : <a href={s.href} target="_blank" rel="noopener noreferrer">{s.label}</a>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           ))}
           {pending && <div className="chat-msg assistant"><div className="chat-who">Assistant</div><div className="chat-text muted">Thinking…</div></div>}

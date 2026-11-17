@@ -3,7 +3,8 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { contextForUser, createPharmacyAccount, verifyLogin, type Ctx } from "./accounts";
-import { askAssistant, cleanHistory, inventorySummary } from "./assistant";
+import { askAssistant, cleanHistory } from "./assistant";
+import { findRelevantRecords, recordsText } from "./grounding";
 import { parsePatientInput, savePatient } from "./patients";
 import { createProduct, getBatches, parseProductInput, receiveStock, stockOut } from "./stock";
 
@@ -35,16 +36,16 @@ afterEach(() => {
   delete process.env.GEMINI_API_KEY;
 });
 
-describe("inventory summary sent to Gemini", () => {
-  it("lists stock, low-stock flags and expiring batches", async () => {
-    const text = await inventorySummary(ctx);
-    expect(text).toContain("Metformin | 500 mg | Tablet | 140 | 100 | 200 | 500");
+describe("records sent to Gemini", () => {
+  it("finds the medication named in the question, with its batches", async () => {
+    const text = recordsText(await findRelevantRecords(ctx, "How many Metformin do we have?"));
+    expect(text).toMatch(/\[P1\] Metformin 500 mg Tablet: 140 units on hand/);
     expect(text).toContain("running low");
-    expect(text).toContain("MET-1");
+    expect(text).toMatch(/\[B1\] .*lot MET-1/);
   });
 
   it("never includes patient details", async () => {
-    const text = await inventorySummary(ctx);
+    const text = recordsText(await findRelevantRecords(ctx, "Who is Zelda Quimby and what was dispensed on Rx 99?"));
     for (const secret of ["Zelda", "Quimby", "1950-01-02", "Penicillin", "Rx 99"]) expect(text).not.toContain(secret);
   });
 });
@@ -59,7 +60,7 @@ describe("askAssistant", () => {
     const fetchMock = vi.fn(async () => Response.json({ candidates: [{ content: { parts: [{ text: "Metformin is running low." }] } }] }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const answer = await askAssistant(ctx, "What's low?", [{ role: "user", text: "hi" }, { role: "assistant", text: "Hello" }]);
+    const { answer } = await askAssistant(ctx, "What's low?", [{ role: "user", text: "hi" }, { role: "assistant", text: "Hello" }]);
     expect(answer).toBe("Metformin is running low.");
 
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
@@ -85,7 +86,7 @@ describe("askAssistant", () => {
         : Response.json({ candidates: [{ content: { parts: [{ text: "OK" }] } }] }),
     );
     vi.stubGlobal("fetch", fetchMock);
-    expect(await askAssistant(ctx, "What's low?")).toBe("OK");
+    expect((await askAssistant(ctx, "What's low?")).answer).toBe("OK");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -111,7 +112,7 @@ describe("askAssistant", () => {
         : Response.json({ error: { code: 401, message: "ACCESS_TOKEN_TYPE_UNSUPPORTED" } }, { status: 401 }),
     );
     vi.stubGlobal("fetch", fetchMock);
-    expect(await askAssistant(ctx, "What's low?")).toBe("OK");
+    expect((await askAssistant(ctx, "What's low?")).answer).toBe("OK");
   });
 
   it("retries a busy model, then switches to another model", async () => {
@@ -122,7 +123,7 @@ describe("askAssistant", () => {
         : Response.json({ candidates: [{ content: { parts: [{ text: "From the backup model" }] } }] }),
     );
     vi.stubGlobal("fetch", fetchMock);
-    expect(await askAssistant(ctx, "What's low?")).toBe("From the backup model");
+    expect((await askAssistant(ctx, "What's low?")).answer).toBe("From the backup model");
     // Two tries on the busy model, then one on the next.
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
@@ -135,7 +136,7 @@ describe("askAssistant", () => {
         : Response.json({ candidates: [{ content: { parts: [{ text: "OK" }] } }] }),
     );
     vi.stubGlobal("fetch", fetchMock);
-    expect(await askAssistant(ctx, "What's low?")).toBe("OK");
+    expect((await askAssistant(ctx, "What's low?")).answer).toBe("OK");
   });
 
   it("refuses empty or very long questions", async () => {

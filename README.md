@@ -259,9 +259,14 @@ If Ask AI shows an error, it now says the reason and Google's own words
 project, then **Logs**, to see the same message for each question.
 
 How it works: the page sends the question to `/api/assistant` on our own
-server. The server adds a summary of this branch's stock (products, counts,
-reorder levels, expiring batches, open shipments) and asks Gemini. The key
-stays on the server, so it never reaches anyone's browser.
+server. The server looks up only the records that match the question, from
+the signed-in pharmacy and branch (medications, batches, open shipments and
+the drug reference), gives each one an ID like `[P1]`, and asks Gemini to
+answer **only** from those records. If the answer isn't in them, Gemini says
+"I couldn't find this" instead of guessing. Under each answer, the page lists
+the records it used, each linking to that record. The code is in
+`src/lib/grounding.ts`. The key stays on the server, so it never reaches
+anyone's browser.
 
 **Privacy:** the assistant never sends patient details (names, birth dates,
 allergies, insurance, Rx numbers) or staff details to Gemini. Don't paste

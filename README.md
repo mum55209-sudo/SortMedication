@@ -57,7 +57,11 @@ trail. It stores no patient details.
   If there isn't enough stock, nothing is taken and it says how much there
   is; the **In stock** column warns "Not enough" ahead of time. **Choose
   batch** fills from a batch you pick instead. When the fills run out it
-  shows "No refills left". **Cancel** (with a reason) stops it. Schedule II
+  shows "No refills left". **Patient moving to another pharmacy?** under a
+  prescription marks it "Transferred out" (with the new pharmacy's name) so
+  it can't be filled here any more. If its last fill was never picked up
+  (e.g. next month's refill was already prepared), tick **Put the last fill
+  back in stock** and those units go back into the batches they came from. **Cancel** (with a reason) stops it. Schedule II
   prescriptions can't have refills. The Prescriptions page lists and searches
   them all.
 - **In (+) and Out (−)**: stock coming in (Receive stock) is labelled "In

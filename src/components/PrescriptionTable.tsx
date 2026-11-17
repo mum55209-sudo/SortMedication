@@ -1,9 +1,15 @@
 import Link from "next/link";
-import { cancelPrescriptionAction, fillPrescriptionAction } from "@/app/actions";
+import { cancelPrescriptionAction, fillPrescriptionAction, transferPrescriptionAction } from "@/app/actions";
 import { ActionForm } from "@/components/ActionForm";
 import { formatDate, formatDateTime } from "@/components/ui";
 import { patientName } from "@/lib/patients";
 import { prescriptionState, STATE_LABELS, type Prescription } from "@/lib/prescriptions";
+
+// A fill from the last 2 weeks may still be waiting on the shelf, so
+// "put it back" starts ticked for those.
+function recentlyFilled(last: Date | null): boolean {
+  return last !== null && Date.now() - new Date(last).getTime() < 14 * 86_400_000;
+}
 
 // A list of prescriptions with "Fill" and "Cancel" for active ones. Fill
 // takes the prescribed quantity out of stock, soonest-expiring batches first.
@@ -62,6 +68,7 @@ export function PrescriptionTable({
                 <td>
                   <span className={`tag ${state === "active" ? "ok" : state === "used_up" ? "low" : "plain"}`}>{STATE_LABELS[state]}</span>
                   {rx.cancel_reason && <><br /><span className="small muted">{rx.cancel_reason}</span></>}
+                  {rx.transferred_to && <><br /><span className="small muted">To {rx.transferred_to}</span></>}
                 </td>
                 <td className="right">
                   {state === "active" && (
@@ -81,6 +88,32 @@ export function PrescriptionTable({
                         <Link className="small" href={`/stock-out?product=${rx.product_id}&patient=${rx.patient_id}&prescription=${rx.id}`}>
                           Choose batch
                         </Link>
+                      )}
+                      {canEdit && (
+                        <details>
+                          <summary className="small">Patient moving to another pharmacy?</summary>
+                          <ActionForm
+                            action={transferPrescriptionAction}
+                            className="stack"
+                            confirm={`Transfer Rx ${rx.rx_number} out? It can't be filled here after this.`}
+                          >
+                            <input type="hidden" name="id" value={rx.id} />
+                            <input type="hidden" name="patientId" value={rx.patient_id} />
+                            <input name="toPharmacy" placeholder="New pharmacy's name" aria-label="Pharmacy the patient is moving to" required size={16} />
+                            {canFill && rx.fills_used > 0 && (
+                              <label className="inline small">
+                                <input
+                                  type="checkbox"
+                                  name="putBack"
+                                  value="yes"
+                                  defaultChecked={recentlyFilled(rx.last_filled)}
+                                />
+                                <span>Put the last fill ({rx.quantity} units) back in stock, it wasn&apos;t picked up</span>
+                              </label>
+                            )}
+                            <button type="submit" className="small">Transfer out</button>
+                          </ActionForm>
+                        </details>
                       )}
                       {canEdit && (
                         <ActionForm action={cancelPrescriptionAction} className="inline">

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { contextForUser, createPharmacyAccount, verifyLogin, type Ctx } from "./accounts";
 import { listPatients, parsePatientInput, patientDispenses, savePatient, setPatientRemoved } from "./patients";
 import { cancelPrescription, createPrescription, listPrescriptions, parsePrescriptionInput, prescriptionState } from "./prescriptions";
-import { createProduct, fillPrescription, getBatches, listInventory, parseProductInput, receiveStock, stockOut } from "./stock";
+import { createProduct, fillPrescription, getBatches, listInventory, parseProductInput, receiveStock, stockOut, transferPrescription } from "./stock";
 import { planFill } from "./domain";
 
 async function setup(email: string) {
@@ -133,5 +133,36 @@ describe("filling a prescription takes it out of stock", () => {
     expect(await onHand(ctx, productId)).toBe(100);
     const [rx] = await listPrescriptions(ctx, { patientId, show: "all" });
     expect(rx.fills_used).toBe(0);
+  });
+});
+
+describe("transferring a prescription to another pharmacy", () => {
+  it("stops it here and puts the last, not picked up, fill back in stock", async () => {
+    const { ctx, patientId, productId } = await setup("move1@example.com");
+    await receiveStock(ctx, { productId, lotNumber: "SOON", expiryDate: "2098-01-01", receivedDate: "", quantity: 10, supplierId: null, invoice: "" });
+    const rxId = await createPrescription(ctx, rxInput(patientId, productId, { refills_allowed: "2" }));
+    await fillPrescription(ctx, rxId); // picked up: 10 from SOON, 11 from L1
+    await fillPrescription(ctx, rxId); // prepared for next month: 21 from L1
+    const total = async () => (await getBatches(ctx, productId)).reduce((sum, b) => sum + b.quantity, 0);
+    expect(await total()).toBe(68);
+
+    await expect(transferPrescription(ctx, rxId, { toPharmacy: " ", putBackLastFill: true })).rejects.toThrow(/pharmacy/);
+    const result = await transferPrescription(ctx, rxId, { toPharmacy: "Main St Pharmacy", putBackLastFill: true });
+    expect(result.putBack).toBe(21);
+    expect(await total()).toBe(89);
+
+    const [rx] = await listPrescriptions(ctx, { patientId, show: "all" });
+    expect(rx).toMatchObject({ status: "transferred", transferred_to: "Main St Pharmacy", fills_used: 1 });
+    expect(prescriptionState(rx)).toBe("transferred");
+    await expect(fillPrescription(ctx, rxId)).rejects.toThrow(/transferred to Main St Pharmacy/);
+    await expect(transferPrescription(ctx, rxId, { toPharmacy: "X", putBackLastFill: false })).rejects.toThrow(/already/);
+  });
+
+  it("can transfer without touching stock", async () => {
+    const { ctx, patientId, productId } = await setup("move2@example.com");
+    const rxId = await createPrescription(ctx, rxInput(patientId, productId));
+    await fillPrescription(ctx, rxId);
+    await transferPrescription(ctx, rxId, { toPharmacy: "Elm Pharmacy", putBackLastFill: false });
+    expect((await getBatches(ctx, productId))[0].quantity).toBe(79);
   });
 });

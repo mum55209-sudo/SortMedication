@@ -32,12 +32,13 @@ import {
   saveSupplier,
   setProductArchived,
   fillPrescription,
+  transferPrescription,
   stockOut,
   updateProduct,
 } from "@/lib/stock";
 import { parsePatientInput, savePatient, setPatientRemoved } from "@/lib/patients";
 import { cancelPrescription, createPrescription, parsePrescriptionInput } from "@/lib/prescriptions";
-import type { FillResult } from "@/lib/stock";
+import type { FillResult, TransferResult } from "@/lib/stock";
 import { createShipment, updateShipmentStatus, type ShipmentStatus } from "@/lib/shipments";
 
 function text(fd: FormData, name: string): string {
@@ -388,6 +389,25 @@ export async function fillPrescriptionAction(fd: FormData): Promise<ActionResult
   }
   revalidateStock(text(fd, "patientId"));
   return { message: filledMessage(result) };
+}
+
+// The patient moved to another pharmacy: stop the prescription here and,
+// if ticked, put its last (not picked up) fill back in stock.
+export async function transferPrescriptionAction(fd: FormData): Promise<ActionResult> {
+  const ctx = await requireContext();
+  let result: TransferResult;
+  try {
+    result = await transferPrescription(ctx, text(fd, "id"), {
+      toPharmacy: text(fd, "toPharmacy"),
+      putBackLastFill: text(fd, "putBack") === "yes",
+    });
+  } catch (err) {
+    return toActionError(err);
+  }
+  revalidateStock(text(fd, "patientId"));
+  return {
+    message: `Rx ${result.rxNumber} transferred out.${result.putBack ? ` ${result.putBack} units put back in stock.` : ""}`,
+  };
 }
 
 export async function cancelPrescriptionAction(fd: FormData): Promise<ActionResult> {

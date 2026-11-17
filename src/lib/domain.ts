@@ -63,6 +63,8 @@ export const MOVEMENT_TYPES = {
   adjusted: { label: "Count adjustment", sign: 0, permission: "stock.adjust" },
   transfer_out: { label: "Moved to another branch", sign: -1, permission: "stock.adjust" },
   transfer_in: { label: "Moved from another branch", sign: 1, permission: "stock.adjust" },
+  // A prescription fill that was never picked up, put back on the shelf.
+  returned_to_stock: { label: "Put back in stock (not picked up)", sign: 1, permission: "stock.out" },
 } as const satisfies Record<string, { label: string; sign: -1 | 0 | 1; permission: Permission }>;
 export type MovementType = keyof typeof MOVEMENT_TYPES;
 

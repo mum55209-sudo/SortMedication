@@ -262,6 +262,13 @@ CREATE INDEX movements_prescription_idx ON movements (prescription_id);
   `
 ALTER TABLE movements ADD COLUMN fill_id TEXT;
 `,
+  // 8: A prescription can be transferred to another pharmacy when the
+  // patient moves; it then can't be filled here.
+  `
+ALTER TABLE prescriptions DROP CONSTRAINT prescriptions_status_check;
+ALTER TABLE prescriptions ADD CONSTRAINT prescriptions_status_check CHECK (status IN ('active', 'cancelled', 'transferred'));
+ALTER TABLE prescriptions ADD COLUMN transferred_to TEXT NOT NULL DEFAULT '';
+`,
 ];
 
 // The whole database as one SQL script, for pasting into Supabase's SQL

@@ -29,8 +29,9 @@ export interface Prescription {
   quantity: number;
   refills_allowed: number;
   date_written: string;
-  status: "active" | "cancelled";
+  status: "active" | "cancelled" | "transferred";
   cancel_reason: string;
+  transferred_to: string;
   fills_used: number;
   fills_left: number;
   last_filled: Date | null;
@@ -38,10 +39,11 @@ export interface Prescription {
   in_stock: number;
 }
 
-export type PrescriptionState = "active" | "used_up" | "cancelled";
+export type PrescriptionState = "active" | "used_up" | "cancelled" | "transferred";
 
 export function prescriptionState(p: Pick<Prescription, "status" | "fills_left">): PrescriptionState {
   if (p.status === "cancelled") return "cancelled";
+  if (p.status === "transferred") return "transferred";
   return p.fills_left > 0 ? "active" : "used_up";
 }
 
@@ -49,6 +51,7 @@ export const STATE_LABELS: Record<PrescriptionState, string> = {
   active: "Active",
   used_up: "No refills left",
   cancelled: "Cancelled",
+  transferred: "Transferred out",
 };
 
 function requireView(ctx: Ctx) {
@@ -96,14 +99,17 @@ const SELECT = `
   SELECT rx.id, rx.patient_id, pa.first_name AS patient_first_name, pa.last_name AS patient_last_name,
          rx.product_id, p.name, p.strength, p.form, p.dea_schedule,
          rx.rx_number, rx.prescriber_name, rx.prescriber_phone, rx.directions, rx.quantity, rx.refills_allowed,
-         rx.date_written, rx.status, rx.cancel_reason,
+         rx.date_written, rx.status, rx.cancel_reason, rx.transferred_to,
          COALESCE(f.fills, 0)::int AS fills_used, f.last_filled,
          COALESCE((SELECT SUM(m.quantity) FROM movements m JOIN batches b ON b.id = m.batch_id
                     WHERE m.product_id = rx.product_id AND b.expiry_date >= CURRENT_DATE), 0)::int AS in_stock
     FROM prescriptions rx
     JOIN patients pa ON pa.id = rx.patient_id
     JOIN products p ON p.id = rx.product_id
-    LEFT JOIN (SELECT prescription_id, COUNT(DISTINCT COALESCE(fill_id, id)) AS fills, MAX(created_at) AS last_filled
+    LEFT JOIN (SELECT prescription_id,
+                      COUNT(DISTINCT CASE WHEN type = 'dispensed' THEN COALESCE(fill_id, id) END)
+                        - COUNT(DISTINCT CASE WHEN type = 'returned_to_stock' THEN fill_id END) AS fills,
+                      MAX(created_at) FILTER (WHERE type = 'dispensed') AS last_filled
                  FROM movements WHERE pharmacy_id = $1 AND prescription_id IS NOT NULL GROUP BY prescription_id) f
       ON f.prescription_id = rx.id
    WHERE rx.pharmacy_id = $1`;
@@ -202,6 +208,7 @@ export async function checkFill(db: Queryable, ctx: Ctx, prescriptionId: string,
   if (rx.product_id !== productId) throw new UserError("This prescription is for a different medication.");
   const state = prescriptionState(rx);
   if (state === "cancelled") throw new UserError("This prescription was cancelled.");
+  if (state === "transferred") throw new UserError(`This prescription was transferred to ${rx.transferred_to}, so it can't be filled here.`);
   if (state === "used_up") throw new UserError("This prescription has no refills left. Contact the prescriber for a new one.");
   const patient = (await db.query<{ removed: boolean }>("SELECT removed FROM patients WHERE id = $1", [rx.patient_id]))[0];
   if (patient?.removed) throw new UserError("This patient was removed. Restore them before dispensing.");

@@ -29,7 +29,7 @@ export default async function PrescriptionsPage({ searchParams }: { searchParams
             Show
             <select name="show" defaultValue={all ? "all" : "active"}>
               <option value="active">Active only</option>
-              <option value="all">All, including cancelled and used up</option>
+              <option value="all">All, including cancelled, transferred and used up</option>
             </select>
           </label>
           <button type="submit">Find</button>

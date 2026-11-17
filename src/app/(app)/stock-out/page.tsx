@@ -35,7 +35,7 @@ export default async function StockOutPage({
       )}
       {rx && rxState !== "active" && (
         <p className="error">
-          Rx {rx.rx_number} {rxState === "cancelled" ? "was cancelled" : "has no refills left"}, so it can&apos;t be filled.
+          Rx {rx.rx_number} {rxState === "cancelled" ? "was cancelled" : rxState === "transferred" ? `was transferred to ${rx.transferred_to}` : "has no refills left"}, so it can&apos;t be filled.
         </p>
       )}
     </>

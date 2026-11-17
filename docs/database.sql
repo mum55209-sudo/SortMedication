@@ -298,6 +298,19 @@ ALTER TABLE movements ADD COLUMN fill_id TEXT;
   END IF;
 END $do$;
 
+-- Step 8
+DO $do$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 8) THEN
+    EXECUTE $step$
+ALTER TABLE prescriptions DROP CONSTRAINT prescriptions_status_check;
+ALTER TABLE prescriptions ADD CONSTRAINT prescriptions_status_check CHECK (status IN ('active', 'cancelled', 'transferred'));
+ALTER TABLE prescriptions ADD COLUMN transferred_to TEXT NOT NULL DEFAULT '';
+    $step$;
+    INSERT INTO schema_migrations (version) VALUES (8);
+  END IF;
+END $do$;
+
 -- Hide every table from Supabase's public Data API (the app connects directly and isn't affected).
 DO $$
 DECLARE t record;

@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 import { contextForUser, createPharmacyAccount, verifyLogin, type Ctx } from "./accounts";
 import { listPatients, parsePatientInput, patientDispenses, savePatient, setPatientRemoved } from "./patients";
 import { cancelPrescription, createPrescription, listPrescriptions, parsePrescriptionInput, prescriptionState } from "./prescriptions";
-import { createProduct, getBatches, parseProductInput, receiveStock, stockOut } from "./stock";
+import { createProduct, fillPrescription, getBatches, listInventory, parseProductInput, receiveStock, stockOut } from "./stock";
+import { planFill } from "./domain";
 
 async function setup(email: string) {
   await createPharmacyAccount({ pharmacyName: "Rx Pharmacy", ownerName: "Owner", email, password: "password123" });
@@ -84,5 +85,53 @@ describe("removing a patient", () => {
 
     await setPatientRemoved(ctx, patientId, false);
     expect(await listPatients(ctx)).toHaveLength(1);
+  });
+});
+
+describe("filling a prescription takes it out of stock", () => {
+  const onHand = async (ctx: Ctx, productId: string) =>
+    (await getBatches(ctx, productId)).reduce((sum, b) => sum + b.quantity, 0);
+
+  it("plans soonest-expiring batches first and never uses expired stock", () => {
+    const batches = [
+      { id: "late", expiry_date: "2099-06-01", quantity: 50 },
+      { id: "old", expiry_date: "2000-01-01", quantity: 100 },
+      { id: "soon", expiry_date: "2098-01-01", quantity: 10 },
+    ];
+    const plan = planFill(batches, 25, "2026-11-17");
+    expect(plan.picks?.map((p) => [p.batch.id, p.quantity])).toEqual([["soon", 10], ["late", 15]]);
+    expect(planFill(batches, 61, "2026-11-17")).toMatchObject({ picks: null, usable: 60, expired: 100 });
+  });
+
+  it("deducts the prescribed quantity across batches, linked to the patient, and counts one fill", async () => {
+    const { ctx, patientId, productId } = await setup("fill1@example.com");
+    // setup() received 100 units expiring 2099; add 10 that expire sooner.
+    await receiveStock(ctx, { productId, lotNumber: "SOON", expiryDate: "2098-01-01", receivedDate: "", quantity: 10, supplierId: null, invoice: "" });
+    const rxId = await createPrescription(ctx, rxInput(patientId, productId));
+
+    const result = await fillPrescription(ctx, rxId);
+    expect(result.batches).toEqual([{ lot: "SOON", quantity: 10 }, { lot: "L1", quantity: 11 }]);
+    expect(result.leftInStock).toBe(89);
+    expect(await onHand(ctx, productId)).toBe(89);
+    const [row] = (await listInventory(ctx, {})).filter((r) => r.id === productId);
+    expect(row.total).toBe(89);
+
+    const [rx] = await listPrescriptions(ctx, { patientId, show: "all" });
+    expect(rx).toMatchObject({ fills_used: 1, fills_left: 1, in_stock: 89 });
+    const history = await patientDispenses(ctx, patientId);
+    expect(history.reduce((sum, h) => sum + h.quantity, 0)).toBe(21);
+
+    await fillPrescription(ctx, rxId);
+    await expect(fillPrescription(ctx, rxId)).rejects.toThrow(/no refills left/);
+    expect(await onHand(ctx, productId)).toBe(68);
+  });
+
+  it("blocks the fill and takes nothing when there isn't enough usable stock", async () => {
+    const { ctx, patientId, productId } = await setup("fill2@example.com");
+    const rxId = await createPrescription(ctx, rxInput(patientId, productId, { quantity: "150" }));
+    await expect(fillPrescription(ctx, rxId)).rejects.toThrow(/needs 150 units but only 100/);
+    expect(await onHand(ctx, productId)).toBe(100);
+    const [rx] = await listPrescriptions(ctx, { patientId, show: "all" });
+    expect(rx.fills_used).toBe(0);
   });
 });

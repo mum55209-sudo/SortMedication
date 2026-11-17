@@ -50,9 +50,14 @@ trail. It stores no patient details.
   real patients. **Remove patient** hides a patient and cancels their active
   prescriptions, but keeps their records; **Restore patient** brings them back.
 - **Prescriptions**: add one from the patient's page (Rx number, medication,
-  quantity, refills, prescriber, directions, date written). **Out (−) Fill**
-  dispenses it and counts the fill; when the fills run out it shows "No
-  refills left". **Cancel** (with a reason) stops it. Schedule II
+  quantity, refills, prescriber, directions, date written). With **Fill it
+  now** ticked (the default) it is filled straight away. **Fill** takes the
+  prescribed quantity out of stock automatically, from the batches that
+  expire soonest (never expired ones), and records it against the patient.
+  If there isn't enough stock, nothing is taken and it says how much there
+  is; the **In stock** column warns "Not enough" ahead of time. **Choose
+  batch** fills from a batch you pick instead. When the fills run out it
+  shows "No refills left". **Cancel** (with a reason) stops it. Schedule II
   prescriptions can't have refills. The Prescriptions page lists and searches
   them all.
 - **In (+) and Out (−)**: stock coming in (Receive stock) is labelled "In

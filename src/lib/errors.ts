@@ -2,7 +2,8 @@
 // app, such as "Not enough stock in this batch".
 export class UserError extends Error {}
 
-export type ActionResult = { error?: string; message?: string } | void;
+// "warning" means it worked, but something needs attention (shown in amber).
+export type ActionResult = { error?: string; message?: string; warning?: string } | void;
 
 export function toActionError(err: unknown): { error: string } {
   if (err instanceof UserError) return { error: err.message };

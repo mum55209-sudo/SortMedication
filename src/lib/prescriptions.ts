@@ -1,7 +1,8 @@
 // Prescriptions.
 //
-// A prescription is for one patient and one medication. Each "Dispensed"
-// stock-out linked to it is a fill; it allows 1 + refills_allowed fills.
+// A prescription is for one patient and one medication. Each fill takes the
+// prescribed quantity out of stock (see fillPrescription in stock.ts); a fill
+// may use several batches, which share one fill_id. A prescription allows 1 + refills_allowed fills.
 // Prescriptions are never deleted (pharmacies must keep them): they are
 // cancelled instead, with a reason. Like patients, this is health
 // information, so it needs the "patients" permission.
@@ -33,6 +34,8 @@ export interface Prescription {
   fills_used: number;
   fills_left: number;
   last_filled: Date | null;
+  // Units of this medication in stock that can be used (not expired).
+  in_stock: number;
 }
 
 export type PrescriptionState = "active" | "used_up" | "cancelled";
@@ -94,11 +97,13 @@ const SELECT = `
          rx.product_id, p.name, p.strength, p.form, p.dea_schedule,
          rx.rx_number, rx.prescriber_name, rx.prescriber_phone, rx.directions, rx.quantity, rx.refills_allowed,
          rx.date_written, rx.status, rx.cancel_reason,
-         COALESCE(f.fills, 0)::int AS fills_used, f.last_filled
+         COALESCE(f.fills, 0)::int AS fills_used, f.last_filled,
+         COALESCE((SELECT SUM(m.quantity) FROM movements m JOIN batches b ON b.id = m.batch_id
+                    WHERE m.product_id = rx.product_id AND b.expiry_date >= CURRENT_DATE), 0)::int AS in_stock
     FROM prescriptions rx
     JOIN patients pa ON pa.id = rx.patient_id
     JOIN products p ON p.id = rx.product_id
-    LEFT JOIN (SELECT prescription_id, COUNT(*) AS fills, MAX(created_at) AS last_filled
+    LEFT JOIN (SELECT prescription_id, COUNT(DISTINCT COALESCE(fill_id, id)) AS fills, MAX(created_at) AS last_filled
                  FROM movements WHERE pharmacy_id = $1 AND prescription_id IS NOT NULL GROUP BY prescription_id) f
       ON f.prescription_id = rx.id
    WHERE rx.pharmacy_id = $1`;

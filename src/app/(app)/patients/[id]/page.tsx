@@ -79,6 +79,12 @@ export default async function PatientPage({
                   <label>Date written<input name="date_written" type="date" defaultValue={todayISO()} max={todayISO()} required /></label>
                 </div>
                 <label>Directions<input name="directions" placeholder="e.g. Take 1 capsule 3 times a day for 7 days" /></label>
+                {can(ctx.user.role, "stock.out") && (
+                  <label className="inline">
+                    <input type="checkbox" name="fillNow" value="yes" defaultChecked />
+                    <span>Fill it now: take the quantity out of stock (soonest-expiring batch first)</span>
+                  </label>
+                )}
                 <div className="actions"><button type="submit">Add prescription</button></div>
               </ActionForm>
             )}

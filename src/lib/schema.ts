@@ -256,6 +256,12 @@ CREATE INDEX prescriptions_patient_idx ON prescriptions (patient_id);
 ALTER TABLE movements ADD COLUMN prescription_id TEXT REFERENCES prescriptions(id);
 CREATE INDEX movements_prescription_idx ON movements (prescription_id);
 `,
+  // 7: One prescription fill can take stock from several batches (soonest
+  // expiry first). Every movement of the same fill shares a fill_id, so the
+  // fill is counted once.
+  `
+ALTER TABLE movements ADD COLUMN fill_id TEXT;
+`,
 ];
 
 // The whole database as one SQL script, for pasting into Supabase's SQL

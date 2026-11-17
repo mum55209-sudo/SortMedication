@@ -18,6 +18,7 @@ import {
   expiryStatus,
   isISODate,
   isValidNdc,
+  planFill,
   productFlags,
   suggestBatch,
   todayISO,
@@ -236,13 +237,14 @@ async function insertMovement(
     note?: string;
     patientId?: string | null;
     prescriptionId?: string | null;
+    fillId?: string | null;
   },
 ) {
   await db.query(
-    `INSERT INTO movements (id, pharmacy_id, branch_id, product_id, batch_id, type, quantity, user_id, reference, note, patient_id, prescription_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+    `INSERT INTO movements (id, pharmacy_id, branch_id, product_id, batch_id, type, quantity, user_id, reference, note, patient_id, prescription_id, fill_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
     [newId(), ctx.pharmacy.id, m.branchId, m.productId, m.batchId, m.type, m.quantity, ctx.user.id, m.reference ?? "", m.note ?? "",
-     m.patientId ?? null, m.prescriptionId ?? null],
+     m.patientId ?? null, m.prescriptionId ?? null, m.fillId ?? null],
   );
 }
 
@@ -423,6 +425,72 @@ export async function stockOut(ctx: Ctx, input: StockOutInput): Promise<void> {
       prescriptionId,
     });
   });
+}
+
+// ---------- Filling a prescription ----------
+
+export interface FillResult {
+  rxNumber: string;
+  quantity: number;
+  batches: { lot: string; quantity: number }[];
+  leftInStock: number;
+}
+
+// Fills a prescription in one step: takes the prescribed quantity out of
+// stock, from the batches that expire soonest (never expired ones), and
+// records it as a "Dispensed" movement for the patient. If there isn't
+// enough usable stock, nothing is taken and the message says how much there is.
+export async function fillPrescription(ctx: Ctx, prescriptionId: string, db?: Queryable): Promise<FillResult> {
+  requireCan(ctx, "stock.out");
+  requireCan(ctx, "patients");
+  const run = async (tx: Queryable): Promise<FillResult> => {
+    const productId = (
+      await tx.query<{ product_id: string }>("SELECT product_id FROM prescriptions WHERE id = $1 AND pharmacy_id = $2", [prescriptionId, ctx.pharmacy.id])
+    )[0]?.product_id;
+    if (!productId) throw new UserError("That prescription wasn't found.");
+    const product = await getProductWith(tx, ctx, productId);
+    if (product.archived) throw new UserError("This medication was removed. Restore it on its page before filling.");
+    const fill = await checkFill(tx, ctx, prescriptionId, product.id);
+    const quantity = (await tx.query<{ quantity: number }>("SELECT quantity FROM prescriptions WHERE id = $1", [prescriptionId]))[0].quantity;
+
+    // Lock this medication's batches so two people can't take the same stock at once.
+    await tx.query("SELECT id FROM batches WHERE product_id = $1 AND pharmacy_id = $2 FOR UPDATE", [product.id, ctx.pharmacy.id]);
+    const batches = await tx.query<{ id: string; lot_number: string; expiry_date: string; quantity: number }>(
+      `SELECT b.id, b.lot_number, b.expiry_date, COALESCE((SELECT SUM(m.quantity) FROM movements m WHERE m.batch_id = b.id), 0)::int AS quantity
+         FROM batches b WHERE b.product_id = $1 AND b.pharmacy_id = $2`,
+      [product.id, ctx.pharmacy.id],
+    );
+    const plan = planFill(batches, quantity, todayISO());
+    if (!plan.picks) {
+      const expiredNote = plan.expired > 0 ? ` (${plan.expired} more are expired and can't be used)` : "";
+      throw new UserError(
+        `Not enough ${productLabel(product)} in stock to fill Rx ${fill.rxNumber}: it needs ${quantity} units but only ${plan.usable} can be used${expiredNote}. ` +
+          "Receive more stock first, then fill it.",
+      );
+    }
+    const fillId = newId();
+    for (const pick of plan.picks) {
+      await insertMovement(tx, ctx, {
+        branchId: product.branch_id,
+        productId: product.id,
+        batchId: pick.batch.id,
+        type: "dispensed",
+        quantity: -pick.quantity,
+        reference: `Rx ${fill.rxNumber}`,
+        note: "",
+        patientId: fill.patientId,
+        prescriptionId,
+        fillId,
+      });
+    }
+    return {
+      rxNumber: fill.rxNumber,
+      quantity,
+      batches: plan.picks.map((p) => ({ lot: p.batch.lot_number, quantity: p.quantity })),
+      leftInStock: plan.usable + plan.expired - quantity,
+    };
+  };
+  return db ? run(db) : transaction(run);
 }
 
 // The same product in another branch: matched by NDC, or by name, strength

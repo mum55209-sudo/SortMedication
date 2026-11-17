@@ -287,6 +287,17 @@ CREATE INDEX movements_prescription_idx ON movements (prescription_id);
   END IF;
 END $do$;
 
+-- Step 7
+DO $do$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 7) THEN
+    EXECUTE $step$
+ALTER TABLE movements ADD COLUMN fill_id TEXT;
+    $step$;
+    INSERT INTO schema_migrations (version) VALUES (7);
+  END IF;
+END $do$;
+
 -- Hide every table from Supabase's public Data API (the app connects directly and isn't affected).
 DO $$
 DECLARE t record;

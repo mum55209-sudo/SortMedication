@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { cancelPrescriptionAction } from "@/app/actions";
+import { cancelPrescriptionAction, fillPrescriptionAction } from "@/app/actions";
 import { ActionForm } from "@/components/ActionForm";
 import { formatDate, formatDateTime } from "@/components/ui";
 import { patientName } from "@/lib/patients";
 import { prescriptionState, STATE_LABELS, type Prescription } from "@/lib/prescriptions";
 
-// A list of prescriptions with "Fill" (Out −) and "Cancel" for active ones.
+// A list of prescriptions with "Fill" and "Cancel" for active ones. Fill
+// takes the prescribed quantity out of stock, soonest-expiring batches first.
 export function PrescriptionTable({
   rows,
   showPatient,
@@ -28,6 +29,7 @@ export function PrescriptionTable({
             <th>Medication and directions</th>
             <th>Prescriber</th>
             <th className="num">Qty</th>
+            <th className="num">In stock</th>
             <th>Fills</th>
             <th>Status</th>
             <th></th>
@@ -49,6 +51,10 @@ export function PrescriptionTable({
                 </td>
                 <td>{rx.prescriber_name}{rx.prescriber_phone && <><br /><span className="small muted">{rx.prescriber_phone}</span></>}</td>
                 <td className="num">{rx.quantity}</td>
+                <td className="num">
+                  {rx.in_stock}
+                  {state === "active" && rx.in_stock < rx.quantity && <><br /><span className="tag low">Not enough</span></>}
+                </td>
                 <td className="nowrap">
                   {rx.fills_used} of {1 + rx.refills_allowed} used
                   {rx.last_filled && <><br /><span className="small muted">Last {formatDateTime(rx.last_filled)}</span></>}
@@ -61,8 +67,19 @@ export function PrescriptionTable({
                   {state === "active" && (
                     <div className="actions">
                       {canFill && (
-                        <Link className="button small" href={`/stock-out?product=${rx.product_id}&patient=${rx.patient_id}&prescription=${rx.id}`}>
-                          Out (−) Fill
+                        <ActionForm
+                          action={fillPrescriptionAction}
+                          className="inline"
+                          confirm={`Fill Rx ${rx.rx_number}? This takes ${rx.quantity} units of ${rx.product_label} out of stock.`}
+                        >
+                          <input type="hidden" name="id" value={rx.id} />
+                          <input type="hidden" name="patientId" value={rx.patient_id} />
+                          <button type="submit" className="small">Fill (−{rx.quantity})</button>
+                        </ActionForm>
+                      )}
+                      {canFill && (
+                        <Link className="small" href={`/stock-out?product=${rx.product_id}&patient=${rx.patient_id}&prescription=${rx.id}`}>
+                          Choose batch
                         </Link>
                       )}
                       {canEdit && (

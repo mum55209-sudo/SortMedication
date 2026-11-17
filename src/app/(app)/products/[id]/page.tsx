@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { archiveProductAction } from "@/app/actions";
 import { ActionForm } from "@/components/ActionForm";
+import { DrugInfoCard } from "@/components/DrugInfoCard";
 import { ExpiryTag, Flags, formatDate, formatDateTime, MovementQty, MovementType, Qty } from "@/components/ui";
 import { CATEGORIES, can, formatMoney, productFlags, STORAGE, suggestBatch, todayISO } from "@/lib/domain";
 import { requireContext } from "@/lib/session";
@@ -71,6 +72,8 @@ export default async function ProductPage({
           </dl>
         </div>
       </div>
+
+      <DrugInfoCard name={product.name} />
 
       <div className="card">
         <h2>Batches</h2>

@@ -24,7 +24,16 @@ import { expiryReport, listInventory } from "./stock";
 const API_BASE = process.env.GEMINI_API_BASE || "https://generativelanguage.googleapis.com/v1beta";
 // Tried in order. "gemini-flash-latest" always points at Google's current
 // Flash model, so it keeps working when older names are retired.
-const FALLBACK_MODELS = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"];
+const FALLBACK_MODELS = [
+  "gemini-flash-latest",
+  "gemini-2.5-flash",
+  // Lighter models: usually free when the bigger ones are busy.
+  "gemini-flash-lite-latest",
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash",
+];
+// How long to keep trying in total, so the page never waits forever.
+const TOTAL_BUDGET_MS = 50_000;
 
 export const MAX_QUESTION_LENGTH = 1000;
 const MAX_HISTORY = 10;
@@ -121,40 +130,54 @@ export async function askAssistant(ctx: Ctx, question: string, history: ChatTurn
   const models = [...new Set([process.env.GEMINI_MODEL, ...FALLBACK_MODELS].filter(Boolean) as string[])]
     .map((m) => m.replace(/^models\//, "").replace(/[^a-zA-Z0-9.\-]/g, ""));
 
-  let res: Response | undefined;
-  let detail = "";
-  for (const model of models) {
+  const deadline = Date.now() + TOTAL_BUDGET_MS;
+  const post = async (url: string, headers: Record<string, string>) => {
+    const left = deadline - Date.now();
+    if (left < 1000) return undefined;
     try {
-      res = await fetch(`${API_BASE}/models/${model}:generateContent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body,
-        signal: AbortSignal.timeout(45_000),
-      });
+      return await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body, signal: AbortSignal.timeout(Math.min(25_000, left)) });
     } catch {
-      throw new UserError("Couldn't reach Gemini (no answer within 45 seconds). Please try again in a moment.");
+      return undefined; // timed out or network hiccup: treat like "busy"
     }
+  };
+  const callModel = async (model: string) => {
+    const url = `${API_BASE}/models/${model}:generateContent`;
+    let r = await post(url, { "x-goog-api-key": key });
     // Newer AI Studio keys start with "AQ." instead of "AIza". Some setups
     // reject them in the header (401), so try once more with ?key= instead.
-    if (res.status === 401) {
-      try {
-        res = await fetch(`${API_BASE}/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body,
-          signal: AbortSignal.timeout(45_000),
-        });
-      } catch {
-        throw new UserError("Couldn't reach Gemini (no answer within 45 seconds). Please try again in a moment.");
+    if (r?.status === 401) r = await post(`${url}?key=${encodeURIComponent(key)}`, {});
+    return r;
+  };
+  const busy = (status: number) => status === 500 || status === 502 || status === 503 || status === 504;
+
+  let res: Response | undefined;
+  let detail = "";
+  let lastStatus = 0;
+  models: for (const model of models) {
+    // Busy models get one more try after a short pause, then we move on.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (Date.now() > deadline - 1000) break models;
+      res = await callModel(model);
+      if (!res) {
+        lastStatus = 504;
+        detail = "No answer in time.";
+        console.error(`Gemini timeout with model ${model}`);
+        continue models;
       }
+      if (res.ok) break models;
+      lastStatus = res.status;
+      detail = await geminiErrorText(res);
+      console.error(`Gemini error with model ${model} (try ${attempt + 1}):`, res.status, detail);
+      if (busy(res.status) && attempt === 0) {
+        await new Promise((r) => setTimeout(r, Number(process.env.GEMINI_RETRY_DELAY_MS ?? 1500)));
+        continue;
+      }
+      // Missing model, busy model, or this model's free limit used up: try the next model.
+      if (res.status === 404 || res.status === 429 || busy(res.status)) continue models;
+      break models; // a key problem or bad request won't be fixed by another model
     }
-    if (res.ok) break;
-    detail = await geminiErrorText(res);
-    console.error(`Gemini error with model ${model}:`, res.status, detail);
-    if (res.status !== 404) break;
   }
-  if (!res) throw new UserError("Gemini had a problem answering. Please try again.");
-  if (!res.ok) throw new UserError(explainGeminiError(res.status, detail));
+  if (!res?.ok) throw new UserError(explainGeminiError(lastStatus || 500, detail));
 
   const data = (await res.json()) as {
     candidates?: { finishReason?: string; content?: { parts?: { text?: string; thought?: boolean }[] } }[];
@@ -190,7 +213,7 @@ export function explainGeminiError(status: number, detail: string): string {
   if (/api key not valid|API_KEY_INVALID|api key expired/i.test(detail)) {
     return `Your Gemini key isn't valid. Copy it again from aistudio.google.com, update GEMINI_API_KEY in Vercel and redeploy.${said}`;
   }
-  if (status === 429) return `The Gemini free limit was reached or too many questions came at once. Wait a minute and try again.${said}`;
+  if (status === 429) return `The Gemini free limit was reached on every model the app tried, or too many questions came at once. Wait a minute and try again.${said}`;
   if (status === 403) {
     return `Your Gemini key isn't allowed to use Gemini. Make a new key at aistudio.google.com (Get API key), update GEMINI_API_KEY in Vercel and redeploy.${said}`;
   }
@@ -200,6 +223,8 @@ export function explainGeminiError(status: number, detail: string): string {
     return `Your Gemini key wasn't accepted. Check GEMINI_API_KEY in Vercel has the whole key (keys from AI Studio start with "AQ." or "AIza"), with no spaces.${said}`;
   }
   if (status === 404) return `None of the Gemini models the app tried are available to your key. Set GEMINI_MODEL in Vercel to a model listed in aistudio.google.com.${said}`;
-  if (status >= 500) return `Gemini is having trouble right now (Google's side). Please try again in a few minutes.${said}`;
+  if (status >= 500) {
+    return `All the Gemini models the app tried are busy right now (Google's side, not your website). Please try again in a minute or two.${said}`;
+  }
   return `Gemini had a problem answering (error ${status}).${said}`;
 }

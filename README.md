@@ -233,7 +233,9 @@ To switch it on:
    `.env.local` and restart `npm run dev`.)
 4. Optional: `GEMINI_MODEL` picks the model. If it's empty, the app uses
    `gemini-flash-latest` (Google's current Flash model), falling back to
-   `gemini-2.5-flash` and `gemini-2.0-flash`.
+   `gemini-2.5-flash`, the lighter `gemini-flash-lite-latest` and
+   `gemini-2.5-flash-lite`, then `gemini-2.0-flash`. A busy model gets one
+   retry, then the app moves to the next model.
 
 If Ask AI shows an error, it now says the reason and Google's own words
 (wrong key, free limit reached, model not found). In Vercel, open the

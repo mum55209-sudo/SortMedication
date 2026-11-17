@@ -4,6 +4,7 @@ import { loginAction } from "@/app/actions";
 import { ActionForm } from "@/components/ActionForm";
 import { GoogleButton } from "@/components/GoogleButton";
 import { TRIAL_DAYS } from "@/lib/domain";
+import { databaseConfigured } from "@/lib/db";
 import { googleProblemText } from "@/lib/google";
 import { getContext } from "@/lib/session";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
@@ -18,6 +19,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <p><Link href="/">← SortMed</Link></p>
       <div className="card">
         <h1>Sign in</h1>
+        {!databaseConfigured() && (
+          <p className="warning" role="alert">
+            This site isn&apos;t connected to its database yet, so signing up and signing in won&apos;t work. The owner needs to add
+            DATABASE_URL in Vercel (Settings &gt; Environment Variables) and redeploy.
+          </p>
+        )}
         {googleProblem && <p className="error" role="alert">{googleProblem}</p>}
         <GoogleButton from="login" label="Sign in with Google" />
         <p className="or">or sign in with your email</p>

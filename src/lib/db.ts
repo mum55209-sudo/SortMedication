@@ -157,6 +157,12 @@ async function lockDownTables(db: Driver) {
   }
 }
 
+// False when the site is online (Vercel) but hasn't been given its database
+// yet. Sign-up and sign-in can't work until DATABASE_URL is added.
+export function databaseConfigured(): boolean {
+  return Boolean(process.env.DATABASE_URL) || !process.env.VERCEL;
+}
+
 async function connect(): Promise<Driver> {
   const url = process.env.DATABASE_URL;
   if (!url && process.env.VERCEL) {

@@ -311,6 +311,21 @@ ALTER TABLE prescriptions ADD COLUMN transferred_to TEXT NOT NULL DEFAULT '';
   END IF;
 END $do$;
 
+-- Step 9
+DO $do$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9) THEN
+    EXECUTE $step$
+ALTER TABLE pharmacies ADD COLUMN stripe_customer_id TEXT;
+ALTER TABLE pharmacies ADD COLUMN stripe_subscription_id TEXT;
+ALTER TABLE pharmacies ADD COLUMN subscription_renews_at TIMESTAMPTZ;
+ALTER TABLE pharmacies ADD COLUMN subscription_cancel_at_period_end BOOLEAN NOT NULL DEFAULT false;
+CREATE INDEX pharmacies_stripe_subscription_idx ON pharmacies (stripe_subscription_id);
+    $step$;
+    INSERT INTO schema_migrations (version) VALUES (9);
+  END IF;
+END $do$;
+
 -- Hide every table from Supabase's public Data API (the app connects directly and isn't affected).
 DO $$
 DECLARE t record;

@@ -163,9 +163,11 @@ export function trialDaysLeft(trialEndsAt: Date, now: Date = new Date()): number
 }
 
 // A pharmacy can change data while its trial runs or once it has paid.
+// "past_due" (a card payment failed and Stripe is retrying) still works, so a
+// pharmacy isn't locked out mid-day over an expired card.
 // After that its data stays viewable and exportable, but read-only.
 export function canWrite(status: string, trialEndsAt: Date, now: Date = new Date()): boolean {
-  if (status === "active") return true;
+  if (status === "active" || status === "past_due") return true;
   if (status === "trialing") return trialEndsAt.getTime() > now.getTime();
   return false;
 }

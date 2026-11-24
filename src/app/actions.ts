@@ -22,7 +22,8 @@ import {
 import { parseCsv } from "@/lib/csv";
 import { can, type MovementType } from "@/lib/domain";
 import { toActionError, UserError, type ActionResult } from "@/lib/errors";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { createCheckout, createPortal, stripeConfigured } from "@/lib/billing";
 import { endSession, GOOGLE_SIGNUP_COOKIE, requireContext, sessionToken, startSession } from "@/lib/session";
 import {
   createProduct,
@@ -470,12 +471,37 @@ export async function changePasswordAction(fd: FormData): Promise<ActionResult> 
   return { message: "Password saved." };
 }
 
+// Where Stripe should send the owner back to: APP_URL, or this site's address.
+async function siteUrl(): Promise<string> {
+  if (process.env.APP_URL) return process.env.APP_URL;
+  const h = await headers();
+  return `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
+}
+
 export async function startSubscriptionAction(): Promise<ActionResult> {
   const ctx = await requireContext();
   if (!can(ctx.user.role, "settings.edit")) return { error: "Only the pharmacy owner can manage the subscription." };
-  // Payments are not connected yet. When Stripe is set up, this is where the
-  // app will send the owner to Stripe's checkout page.
-  return {
-    error: "Online payment isn't switched on yet. Please contact us to start your $80/month subscription.",
-  };
+  if (!stripeConfigured()) {
+    return { error: "Online payment isn't switched on yet. Please contact us to start your $80/month subscription." };
+  }
+  let url: string;
+  try {
+    url = await createCheckout(ctx.pharmacy, ctx.user.email, await siteUrl());
+  } catch (err) {
+    return toActionError(err);
+  }
+  redirect(url);
+}
+
+export async function manageSubscriptionAction(): Promise<ActionResult> {
+  const ctx = await requireContext();
+  if (!can(ctx.user.role, "settings.edit")) return { error: "Only the pharmacy owner can manage the subscription." };
+  if (!stripeConfigured() || !ctx.pharmacy.stripe_customer_id) return { error: "There's no card subscription to manage yet." };
+  let url: string;
+  try {
+    url = await createPortal(ctx.pharmacy.stripe_customer_id, await siteUrl());
+  } catch (err) {
+    return toActionError(err);
+  }
+  redirect(url);
 }

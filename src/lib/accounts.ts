@@ -18,6 +18,10 @@ export interface Pharmacy {
   expiry_warning_days: number;
   subscription_status: string;
   trial_ends_at: Date;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  subscription_renews_at: Date | null;
+  subscription_cancel_at_period_end: boolean;
 }
 
 export interface Branch {

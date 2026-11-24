@@ -75,8 +75,6 @@ trail. It stores no patient details.
 
 ### Not yet included
 
-- Taking payments. The "Start subscription" button explains that online
-  payment isn't switched on yet. Connecting Stripe is the next step.
 - Password reset by email (the owner resets staff passwords for now) and
   sending invitations by email.
 - Limiting staff to particular branches (everyone sees all branches).
@@ -232,6 +230,56 @@ pharmacy's name, and the account is made with a 14-day trial. If someone
 already has an email login with the same address, Google signs them into
 that login. People who signed up with Google can also set a password under
 Settings → My account.
+
+## Card payments (Stripe)
+
+Settings → Subscription has a **Subscribe with card** button. It sends the
+owner to Stripe's own secure checkout page, so card numbers never touch
+SortMed. Any free-trial days left carry over, so the card is first charged
+when the trial ends. Owners can later press **Manage card, invoices or
+cancel** to use Stripe's customer portal. Until the Stripe keys are added,
+the button is hidden and the page says to contact us.
+
+Use Stripe's **test mode** to practise: it looks real but no money moves.
+
+1. Make a free account at https://dashboard.stripe.com/register. You can
+   skip the business details: test mode works straight away. Make sure the
+   **Test mode** switch (top right) is on for every step below.
+2. **Product:** open **Product catalog → Add product**. Name it
+   `SortMed subscription`, choose **Recurring**, price `80.00` USD,
+   billing period **Monthly**, and save. Open the product and copy the
+   **price ID** under Pricing (it starts with `price_`, not `prod_`). You
+   don't need to add a trial here: the app sends the trial days itself.
+3. **Secret key:** open **Developers → API keys** and reveal the
+   **Secret key** (starts with `sk_test_`). Keep it private.
+4. **Webhook:** open **Developers → Webhooks → Add destination**. Pick
+   these events: `checkout.session.completed`,
+   `customer.subscription.created`, `customer.subscription.updated` and
+   `customer.subscription.deleted`. Choose **Webhook endpoint** and paste
+   `https://sort-medi.vercel.app/api/stripe/webhook` (the /setup-check page
+   shows this address too). Save, then reveal and copy the **Signing
+   secret** (starts with `whsec_`).
+5. **Customer portal:** open **Settings → Billing → Customer portal** and
+   click **Save** (or **Activate test link**), so the Manage button works.
+6. In Vercel, open the project's **Settings → Environment Variables** and
+   add `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID` and `STRIPE_WEBHOOK_SECRET`.
+   Then **Redeploy**.
+7. Open `/setup-check` to see both Stripe rows ticked. Then sign in as an
+   owner, go to Settings → Subscription and press **Subscribe with card**.
+   Pay with card `4242 4242 4242 4242`, any future date, any 3-digit code
+   and any ZIP. You come back to SortMed with the subscription active.
+   Other test cards: `4000 0000 0000 0002` is declined,
+   `4000 0025 0000 3155` asks for an extra bank check.
+
+What the statuses mean: **trialing** is the free trial with no card yet,
+**active** is subscribed (including the trial days after subscribing),
+**past_due** means a card payment failed and Stripe is retrying (the app
+still works and shows a warning), and **cancelled** makes the pharmacy
+read-only (data can still be viewed and exported).
+
+When you're ready for real money, finish your business details in Stripe,
+switch Test mode off, make the same product, webhook and portal in live
+mode, and replace the three values in Vercel with the live ones.
 
 ## AI assistant (Google Gemini)
 

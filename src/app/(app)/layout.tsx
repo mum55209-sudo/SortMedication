@@ -40,8 +40,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </header>
       {!ctx.writable && (
         <div className="banner locked">
-          Your free trial has ended, so {ctx.pharmacy.name} is read-only. You can still view and export everything.{" "}
+          {ctx.pharmacy.subscription_status === "cancelled" ? "Your subscription has ended" : "Your free trial has ended"}, so {ctx.pharmacy.name} is read-only. You can still view and export everything.{" "}
           <Link href="/settings/billing">Start your subscription</Link> to keep editing.
+        </div>
+      )}
+      {ctx.pharmacy.subscription_status === "past_due" && (
+        <div className="banner locked">
+          Your last card payment didn&apos;t go through. <Link href="/settings/billing">Update your card</Link> to keep your subscription.
         </div>
       )}
       {ctx.writable && trialing && (

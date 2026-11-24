@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { databaseConfigured, query } from "@/lib/db";
 import { callbackUrl, googleConfigured } from "@/lib/google";
+import { stripeTestMode } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,26 @@ export default async function SetupCheck() {
       ok: Boolean(process.env.GEMINI_API_KEY),
       note: process.env.GEMINI_API_KEY ? "GEMINI_API_KEY is set." : "Add GEMINI_API_KEY in Vercel (optional).",
     },
+    {
+      name: "Card payments (Stripe keys)",
+      ok: Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_ID),
+      note: !process.env.STRIPE_SECRET_KEY
+        ? "Add STRIPE_SECRET_KEY and STRIPE_PRICE_ID in Vercel (optional)."
+        : !process.env.STRIPE_PRICE_ID
+          ? "Add STRIPE_PRICE_ID (starts with price_) in Vercel."
+          : !/^price_/.test(process.env.STRIPE_PRICE_ID)
+            ? "STRIPE_PRICE_ID should start with price_ (not prod_). Copy it from the price inside your Stripe product."
+            : stripeTestMode()
+              ? "Set, in test mode: no real money is taken."
+              : "Set, in LIVE mode: real cards are charged.",
+    },
+    {
+      name: "Card payments (Stripe webhook)",
+      ok: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
+      note: process.env.STRIPE_WEBHOOK_SECRET
+        ? "STRIPE_WEBHOOK_SECRET is set."
+        : "Add STRIPE_WEBHOOK_SECRET (starts with whsec_) in Vercel, so cancellations and failed payments reach the app.",
+    },
   ];
   return (
     <main className="narrow">
@@ -68,6 +89,9 @@ export default async function SetupCheck() {
         <h2>Google redirect address</h2>
         <p className="small">Paste this exactly into Google Cloud &gt; Google Auth Platform &gt; Clients &gt; your client &gt; Authorized redirect URIs:</p>
         <p><code>{callbackUrl(origin)}</code></p>
+        <h2>Stripe webhook address</h2>
+        <p className="small">Paste this into Stripe &gt; Developers &gt; Webhooks &gt; Add destination (endpoint URL):</p>
+        <p><code>{`${(process.env.APP_URL || origin).replace(/\/+$/, "")}/api/stripe/webhook`}</code></p>
       </div>
     </main>
   );

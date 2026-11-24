@@ -269,6 +269,15 @@ ALTER TABLE prescriptions DROP CONSTRAINT prescriptions_status_check;
 ALTER TABLE prescriptions ADD CONSTRAINT prescriptions_status_check CHECK (status IN ('active', 'cancelled', 'transferred'));
 ALTER TABLE prescriptions ADD COLUMN transferred_to TEXT NOT NULL DEFAULT '';
 `,
+  // 9: Card payments with Stripe. These link a pharmacy to its Stripe
+  // customer and subscription, and remember when it next renews.
+  `
+ALTER TABLE pharmacies ADD COLUMN stripe_customer_id TEXT;
+ALTER TABLE pharmacies ADD COLUMN stripe_subscription_id TEXT;
+ALTER TABLE pharmacies ADD COLUMN subscription_renews_at TIMESTAMPTZ;
+ALTER TABLE pharmacies ADD COLUMN subscription_cancel_at_period_end BOOLEAN NOT NULL DEFAULT false;
+CREATE INDEX pharmacies_stripe_subscription_idx ON pharmacies (stripe_subscription_id);
+`,
 ];
 
 // The whole database as one SQL script, for pasting into Supabase's SQL
